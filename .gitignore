@@ -1,0 +1,5 @@
+/*.o
+/*.so
+/*.bc
+/.vagrant
+/test/.vagrant
