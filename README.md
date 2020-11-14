@@ -26,6 +26,8 @@ postgres=# CREATE EXTENSION pgauditlogtofile;
 ### pgaudit.log_directory
 Name of the directory where the audit file will be created.
 
+**Scope**: System
+
 **Default**: 'log'
 
 Empty or NULL will disable the extension and the audit logging will be done to PostgreSQL server logger.
@@ -35,12 +37,16 @@ Name of the file where the audit will be written. Writing to an existing file wi
 
 This variable can contain time patterns up to minute to allow automatic rotation.
 
+**Scope**: System
+
 **Default**: 'audit-%Y%m%d_%H%M.log'
 
 Empty or NULL will disable the extension and the audit logging will be done to PostgreSQL server logger.
 
 ### pgaudit.log_rotation_age
 Number of minutes after which the audit file will be rotated.
+
+**Scope**: System
 
 **Default**: 1440 minutes (1 day)
 
