@@ -1,5 +1,6 @@
 Vagrant.configure(2) do |config|
     config.vm.box = "centos/7"
+    #config.vm.box = "geerlingguy/centos7"
 
     config.vm.provider :virtualbox do |vb|
         vb.name = "pgauditlogtofile-centos7-test"
@@ -43,7 +44,7 @@ Vagrant.configure(2) do |config|
         
         # Enable pgauditlogtofile
         /usr/bin/sudo -u postgres psql -Xc 'create extension pgauditlogtofile' postgres
-        /usr/bin/sudo -u postgres psql -Xc 'select name, setting, unit from pg_settings where name like 'pgaudit%' order by name' postgres
+        /usr/bin/sudo -u postgres psql -Xc "select name, setting, unit from pg_settings where name like 'pgaudit%' order by name" postgres
         
     SHELL
 
@@ -51,5 +52,5 @@ Vagrant.configure(2) do |config|
   config.vm.synced_folder ".", "/vagrant", disabled: true
 
   # Mount project path for testing
-  config.vm.synced_folder "..", "/pgauditlogtofile"
+  config.vm.synced_folder "..", "/pgauditlogtofile", type: "virtualbox"
 end
