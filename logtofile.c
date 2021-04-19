@@ -84,7 +84,7 @@ static void guc_assign_filename(const char *newval, void *extra);
 static bool guc_check_directory(char **newval, void **extra, GucSource source);
 static void guc_assign_rotation_age(int newval, void *extra);
 
-static inline void pgauditlogtofile_append_csv_literal(StringInfo buf,
+static inline void appendStringInfoCsvLiteral(StringInfo buf,
                                                        const char *data);
 static void pgauditlogtofile_calculate_filename(void);
 static pg_time_t pgauditlogtofile_calculate_next_rotation_time(void);
@@ -263,7 +263,7 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
 /*
  * Checks if pgauditlogtofile is completely started and configured
  */
-static bool pgauditlogtofile_is_enabled(void) {
+static inline bool pgauditlogtofile_is_enabled(void) {
   if (!pgaudit_log_shm || guc_pgaudit_log_directory == NULL ||
       guc_pgaudit_log_filename == NULL ||
       strlen(guc_pgaudit_log_directory) == 0 ||
@@ -296,7 +296,7 @@ static bool pgauditlogtofile_record_audit(ErrorData *edata) {
 /*
  * Close audit log file
  */
-static void pgauditlogtofile_close_file(void) {
+static inline void pgauditlogtofile_close_file(void) {
   if (file_handler) {
     fclose(file_handler);
     file_handler = NULL;
@@ -306,7 +306,7 @@ static void pgauditlogtofile_close_file(void) {
 /*
  * Checks if the audit log file is open
  */
-static bool pgauditlogtofile_is_open_file(void) {
+static inline bool pgauditlogtofile_is_open_file(void) {
   if (file_handler)
     return true;
   else
@@ -327,7 +327,7 @@ static bool pgauditlogtofile_needs_rotate_file(void) {
 
   /* Rotate if the global name is different to this backend copy: it has been
    * rotated */
-  if (pg_strcasecmp(filename_in_use, pgaudit_log_shm->filename) != 0) {
+  if (strcmp(filename_in_use, pgaudit_log_shm->filename) != 0) {
     return true;
   }
 
@@ -457,7 +457,7 @@ static bool pgauditlogtofile_write_audit(ErrorData *edata) {
 /*
  * Formats an audit log line
  */
-static void pgauditlogtofile_format_audit_line(StringInfo buf,
+static void pgauditlogtofile_format_audit_line(StringInfo buf, /* StringInfo is StringInfoData * */
                                                ErrorData *edata) {
   bool print_stmt = false;
 
@@ -486,42 +486,42 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf,
   pgauditlogtofile_format_log_time();
 
   appendStringInfoString(buf, formatted_log_time);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* username */
   if (MyProcPort)
-    pgauditlogtofile_append_csv_literal(buf, MyProcPort->user_name);
-  appendStringInfoChar(buf, ',');
+    appendStringInfoCsvLiteral(buf, MyProcPort->user_name);
+  appendStringInfoCharMacro(buf, ',');
 
   /* database name */
   if (MyProcPort)
-    pgauditlogtofile_append_csv_literal(buf, MyProcPort->database_name);
+    appendStringInfoCsvLiteral(buf, MyProcPort->database_name);
   appendStringInfoChar(buf, ',');
 
   /* Process id  */
   if (MyProcPid != 0)
     appendStringInfo(buf, "%d", MyProcPid);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* Remote host and port */
   if (MyProcPort && MyProcPort->remote_host) {
-    appendStringInfoChar(buf, '"');
+    appendStringInfoCharMacro(buf, '"');
     appendStringInfoString(buf, MyProcPort->remote_host);
     if (MyProcPort->remote_port && MyProcPort->remote_port[0] != '\0') {
-      appendStringInfoChar(buf, ':');
+      appendStringInfoCharMacro(buf, ':');
       appendStringInfoString(buf, MyProcPort->remote_port);
     }
-    appendStringInfoChar(buf, '"');
+    appendStringInfoCharMacro(buf, '"');
   }
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* session id */
   appendStringInfo(buf, "%lx.%x", (long)MyStartTime, MyProcPid);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* Line number */
   appendStringInfo(buf, "%ld", log_line_number);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* PS display */
   if (MyProcPort) {
@@ -533,69 +533,69 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf,
 
     psdisp = get_ps_display(&displen);
     appendBinaryStringInfo(&msgbuf, psdisp, displen);
-    pgauditlogtofile_append_csv_literal(buf, msgbuf.data);
+    appendStringInfoCsvLiteral(buf, msgbuf.data);
 
     pfree(msgbuf.data);
   }
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* session start timestamp */
   if (formatted_start_time[0] == '\0')
     pgauditlogtofile_format_start_time();
   appendStringInfoString(buf, formatted_start_time);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* Virtual transaction id */
   /* keep VXID format in sync with lockfuncs.c */
   if (MyProc != NULL && MyProc->backendId != InvalidBackendId)
     appendStringInfo(buf, "%d/%u", MyProc->backendId, MyProc->lxid);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* Transaction id */
   appendStringInfo(buf, "%u", GetTopTransactionIdIfAny());
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* SQL state code */
   appendStringInfoString(buf, unpack_sql_state(edata->sqlerrcode));
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* errmessage */
-  pgauditlogtofile_append_csv_literal(buf, edata->message);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCsvLiteral(buf, edata->message);
+  appendStringInfoCharMacro(buf, ',');
 
   /* errdetail or errdetail_log */
   if (edata->detail_log)
-    pgauditlogtofile_append_csv_literal(buf, edata->detail_log);
+    appendStringInfoCsvLiteral(buf, edata->detail_log);
   else
-    pgauditlogtofile_append_csv_literal(buf, edata->detail);
-  appendStringInfoChar(buf, ',');
+    appendStringInfoCsvLiteral(buf, edata->detail);
+  appendStringInfoCharMacro(buf, ',');
 
   /* errhint */
-  pgauditlogtofile_append_csv_literal(buf, edata->hint);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCsvLiteral(buf, edata->hint);
+  appendStringInfoCharMacro(buf, ',');
 
   /* internal query */
-  pgauditlogtofile_append_csv_literal(buf, edata->internalquery);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCsvLiteral(buf, edata->internalquery);
+  appendStringInfoCharMacro(buf, ',');
 
   /* if printed internal query, print internal pos too */
   if (edata->internalpos > 0 && edata->internalquery != NULL)
     appendStringInfo(buf, "%d", edata->internalpos);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* errcontext */
-  pgauditlogtofile_append_csv_literal(buf, edata->context);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCsvLiteral(buf, edata->context);
+  appendStringInfoCharMacro(buf, ',');
 
   /* user query --- only reported if not disabled by the caller */
   if (debug_query_string != NULL && !edata->hide_stmt)
     print_stmt = true;
   if (print_stmt)
-    pgauditlogtofile_append_csv_literal(buf, debug_query_string);
-  appendStringInfoChar(buf, ',');
+    appendStringInfoCsvLiteral(buf, debug_query_string);
+  appendStringInfoCharMacro(buf, ',');
   if (print_stmt && edata->cursorpos > 0)
     appendStringInfo(buf, "%d", edata->cursorpos);
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* file error location */
   if (Log_error_verbosity >= PGERROR_VERBOSE) {
@@ -608,22 +608,22 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf,
                        edata->lineno);
     else if (edata->filename)
       appendStringInfo(&msgbuf, "%s:%d", edata->filename, edata->lineno);
-    pgauditlogtofile_append_csv_literal(buf, msgbuf.data);
+    appendStringInfoCsvLiteral(buf, msgbuf.data);
     pfree(msgbuf.data);
   }
-  appendStringInfoChar(buf, ',');
+  appendStringInfoCharMacro(buf, ',');
 
   /* application name */
   if (application_name)
-    pgauditlogtofile_append_csv_literal(buf, application_name);
+    appendStringInfoCsvLiteral(buf, application_name);
 
-  appendStringInfoChar(buf, '\n');
+  appendStringInfoCharMacro(buf, '\n');
 }
 
 /*
  * Appends a literal to the CSV
  */
-static inline void pgauditlogtofile_append_csv_literal(StringInfo buf,
+static inline void appendStringInfoCsvLiteral(StringInfo buf,
                                                        const char *data) {
   const char *p = data;
   char c;
@@ -644,28 +644,24 @@ static inline void pgauditlogtofile_append_csv_literal(StringInfo buf,
 /*
  * Formats the session start time
  */
-static void pgauditlogtofile_format_start_time(void) {
-  pg_time_t stamp_time = (pg_time_t)MyStartTime;
-
+static inline void pgauditlogtofile_format_start_time(void) {
   /*
    * Note: we expect that guc.c will ensure that log_timezone is set up (at
    * least with a minimal GMT value) before Log_line_prefix can become
    * nonempty or CSV mode can be selected.
    */
   pg_strftime(formatted_start_time, FORMATTED_TS_LEN, "%Y-%m-%d %H:%M:%S %Z",
-              pg_localtime(&stamp_time, log_timezone));
+              pg_localtime((pg_time_t *)&MyStartTime, log_timezone));
 }
 
 /*
  * Formats the record time
  */
-static void pgauditlogtofile_format_log_time(void) {
+static inline void pgauditlogtofile_format_log_time(void) {
   struct timeval tv;
-  pg_time_t stamp_time;
-  char msbuf[8];
+  char msbuf[5];
 
   gettimeofday(&tv, NULL);
-  stamp_time = (pg_time_t)tv.tv_sec;
 
   /*
    * Note: we expect that guc.c will ensure that log_timezone is set up (at
@@ -675,9 +671,9 @@ static void pgauditlogtofile_format_log_time(void) {
   pg_strftime(formatted_log_time, FORMATTED_TS_LEN,
               /* leave room for milliseconds... */
               "%Y-%m-%d %H:%M:%S     %Z",
-              pg_localtime(&stamp_time, log_timezone));
+              pg_localtime((pg_time_t *)&(tv.tv_sec), log_timezone));
 
   /* 'paste' milliseconds into place... */
   sprintf(msbuf, ".%03d", (int)(tv.tv_usec / 1000));
-  strncpy(formatted_log_time + 19, msbuf, 4);
+  memcpy(formatted_log_time + 19, msbuf, 4);
 }
