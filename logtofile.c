@@ -17,6 +17,7 @@
 #include "postmaster/syslogger.h"
 #include "storage/fd.h"
 #include "storage/ipc.h"
+#include "storage/pg_shmem.h"
 #include "storage/proc.h"
 #include "tcop/tcopprot.h"
 #include "utils/guc.h"
@@ -100,13 +101,14 @@ static bool pgauditlogtofile_open_file(void);
 static bool pgauditlogtofile_record_audit(ErrorData *edata);
 static bool pgauditlogtofile_write_audit(ErrorData *edata);
 
+
 /*
  * GUC Callback pgaudit.log_directory changes
  */
 static void guc_assign_directory(const char *newval, void *extra) {
   /* Directory is changed force a rotation */
-  if (!pgaudit_log_shm)
-    return;
+  if (UsedShmemSegAddr == NULL)
+  	return;
 
   if (!pgaudit_log_shm->force_rotation) {
     LWLockAcquire(pgaudit_log_shm->lock, LW_EXCLUSIVE);
@@ -120,8 +122,8 @@ static void guc_assign_directory(const char *newval, void *extra) {
  */
 static void guc_assign_filename(const char *newval, void *extra) {
   /* File name is changed; force a rotation */
-  if (!pgaudit_log_shm)
-    return;
+  if (UsedShmemSegAddr == NULL)
+  	return;
 
   if (!pgaudit_log_shm->force_rotation) {
     LWLockAcquire(pgaudit_log_shm->lock, LW_EXCLUSIVE);
@@ -146,8 +148,9 @@ static bool guc_check_directory(char **newval, void **extra, GucSource source) {
  * GUC Callback pgaudit.rotation_age changes
  */
 static void guc_assign_rotation_age(int newval, void *extra) {
-  if (!pgaudit_log_shm)
-    return;
+  /* Rotation policy is changeg; force a rotation */
+  if (UsedShmemSegAddr == NULL)
+  	return;
 
   if (!pgaudit_log_shm->force_rotation) {
     LWLockAcquire(pgaudit_log_shm->lock, LW_EXCLUSIVE);
