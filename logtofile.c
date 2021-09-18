@@ -10,7 +10,7 @@
  *  http://www.postgresql.org/about/licence/
  *-------------------------------------------------------------------------
  */
- #include "postgres.h"
+#include "postgres.h"
 #include "access/xact.h"
 #include "libpq/libpq-be.h"
 #include "miscadmin.h"
@@ -374,7 +374,11 @@ static bool pgauditlogtofile_open_file(void) {
   bool opened = true;
 
   /* Create spool directory if not present; ignore errors */
-  (void)MakePGDirectory(guc_pgaudit_log_directory);
+  #if PG_MAJORVERSION_NUM < 11
+    mkdir(guc_pgaudit_log_directory, S_IRWXU);
+  #else
+    (void)MakePGDirectory(guc_pgaudit_log_directory);
+  #endif
 
   /*
    * Note we do not let Log_file_mode disable IWUSR, since we certainly want
