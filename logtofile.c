@@ -237,7 +237,7 @@ static void pgauditlogtofile_shmem_startup(void) {
 static void pgauditlogtofile_emit_log(ErrorData *edata) {
   /* If it's not a pgaudit log line we will skip it */
   if (pg_strncasecmp(edata->message, PGAUDIT_PREFIX_LINE,
-                     strlen(PGAUDIT_PREFIX_LINE)) != 0) {
+                     PGAUDIT_PREFIX_LINE_LENGTH) != 0) {
     if (prev_emit_log_hook)
       prev_emit_log_hook(edata);
 
