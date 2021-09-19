@@ -33,6 +33,7 @@
 
 /* Defines */
 #define PGAUDIT_PREFIX_LINE "AUDIT: "
+#define PGAUDIT_PREFIX_LINE_LENGTH 7
 #define FORMATTED_TS_LEN 128
 
 /*
@@ -558,7 +559,7 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf, /* StringInfo is 
   appendStringInfoCharMacro(buf, ',');
 
   /* errmessage - PGAUDIT formatted text, +7 exclude "AUDIT: " prefix */
-  appendStringInfoString(buf, edata->message+7);
+  appendStringInfoString(buf, edata->message + PGAUDIT_PREFIX_LINE_LENGTH);
   appendStringInfoCharMacro(buf, ',');
 
   /* errdetail or errdetail_log */
