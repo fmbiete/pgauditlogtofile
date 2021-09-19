@@ -235,17 +235,10 @@ static void pgauditlogtofile_shmem_startup(void) {
  * logger
  */
 static void pgauditlogtofile_emit_log(ErrorData *edata) {
-  /* If it's not a pgaudit log line we will skip it */
-  if (pg_strncasecmp(edata->message, PGAUDIT_PREFIX_LINE,
-                     PGAUDIT_PREFIX_LINE_LENGTH) != 0) {
-    if (prev_emit_log_hook)
-      prev_emit_log_hook(edata);
-
-    return;
-  }
-
-  if (!pgauditlogtofile_is_enabled()) {
-    /* pgauditlogtofile is not enabled, fallback to default log hook */
+  /* pgauditlogtofile disable or not a pgaudit log line, call other hooks and return */
+  if (!pgauditlogtofile_is_enabled() ||
+        pg_strncasecmp(edata->message, PGAUDIT_PREFIX_LINE,
+          PGAUDIT_PREFIX_LINE_LENGTH) != 0) {
     if (prev_emit_log_hook)
       prev_emit_log_hook(edata);
 
@@ -256,7 +249,7 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
     /* Inhibit logging in server log */
     edata->output_to_server = false;
   } else {
-    /* We couldn't record the audit in logfile, fallback to default log */
+    /* Failed to write the audit in logfile, fallback to any default log */
     if (prev_emit_log_hook)
       prev_emit_log_hook(edata);
   }
