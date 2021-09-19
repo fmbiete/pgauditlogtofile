@@ -384,7 +384,8 @@ static bool pgauditlogtofile_open_file(void) {
   umask(oumask);
 
   if (file_handler) {
-    setvbuf(file_handler, NULL, LBF_MODE, 8192);
+    /* 128K buffer and flush on demand or when full -> attempt to use only 1 IO operation per record */
+    setvbuf(file_handler, NULL, _IOFBF, 131072);
 #ifdef WIN32
     /* use CRLF line endings on Windows */
     _setmode(_fileno(file_handler), _O_TEXT);
@@ -438,8 +439,8 @@ static bool pgauditlogtofile_write_audit(ErrorData *edata) {
 
   fseek(file_handler, 0L, SEEK_END);
   rc = fwrite(buf.data, 1, buf.len, file_handler);
-
   pfree(buf.data);
+  fflush(file_handler);
 
   /* If we failed to write the audit to our audit log, use PostgreSQL logger */
   if (rc != buf.len) {
