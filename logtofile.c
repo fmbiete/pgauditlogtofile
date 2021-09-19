@@ -85,8 +85,6 @@ static void guc_assign_filename(const char *newval, void *extra);
 static bool guc_check_directory(char **newval, void **extra, GucSource source);
 static void guc_assign_rotation_age(int newval, void *extra);
 
-static inline void appendStringInfoCsvLiteral(StringInfo buf,
-                                                       const char *data);
 static void pgauditlogtofile_calculate_filename(void);
 static pg_time_t pgauditlogtofile_calculate_next_rotation_time(void);
 static void pgauditlogtofile_close_file(void);
@@ -480,50 +478,45 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf, /* StringInfo is 
    * MyProcPid changes.
    */
   if (log_my_pid != MyProcPid) {
+    /* new session */
     log_line_number = 0;
     log_my_pid = MyProcPid;
-    formatted_start_time[0] = '\0';
+    /* start session timestamp */
+    pgauditlogtofile_format_start_time();
   }
   log_line_number++;
 
-  /*
-   * timestamp with milliseconds
-   *
-   */
+  /* timestamp with milliseconds */
   pgauditlogtofile_format_log_time();
-
   appendStringInfoString(buf, formatted_log_time);
   appendStringInfoCharMacro(buf, ',');
 
   /* username */
   if (MyProcPort)
-    appendStringInfoCsvLiteral(buf, MyProcPort->user_name);
+    appendStringInfoString(buf, MyProcPort->user_name);
   appendStringInfoCharMacro(buf, ',');
 
   /* database name */
   if (MyProcPort)
-    appendStringInfoCsvLiteral(buf, MyProcPort->database_name);
-  appendStringInfoChar(buf, ',');
+    appendStringInfoString(buf, MyProcPort->database_name);
+  appendStringInfoCharMacro(buf, ',');
 
   /* Process id  */
-  if (MyProcPid != 0)
-    appendStringInfo(buf, "%d", MyProcPid);
+  appendStringInfo(buf, "%d", log_my_pid);
   appendStringInfoCharMacro(buf, ',');
 
   /* Remote host and port */
   if (MyProcPort && MyProcPort->remote_host) {
-    appendStringInfoCharMacro(buf, '"');
     appendStringInfoString(buf, MyProcPort->remote_host);
     if (MyProcPort->remote_port && MyProcPort->remote_port[0] != '\0') {
       appendStringInfoCharMacro(buf, ':');
       appendStringInfoString(buf, MyProcPort->remote_port);
     }
-    appendStringInfoCharMacro(buf, '"');
   }
   appendStringInfoCharMacro(buf, ',');
 
-  /* session id */
-  appendStringInfo(buf, "%lx.%x", (long)MyStartTime, MyProcPid);
+  /* session id - hex representation of start time . session process id */
+  appendStringInfo(buf, "%lx.%x", (long)MyStartTime, log_my_pid);
   appendStringInfoCharMacro(buf, ',');
 
   /* Line number */
@@ -540,15 +533,13 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf, /* StringInfo is 
 
     psdisp = get_ps_display(&displen);
     appendBinaryStringInfo(&msgbuf, psdisp, displen);
-    appendStringInfoCsvLiteral(buf, msgbuf.data);
+    appendStringInfoString(buf, msgbuf.data);
 
     pfree(msgbuf.data);
   }
   appendStringInfoCharMacro(buf, ',');
 
   /* session start timestamp */
-  if (formatted_start_time[0] == '\0')
-    pgauditlogtofile_format_start_time();
   appendStringInfoString(buf, formatted_start_time);
   appendStringInfoCharMacro(buf, ',');
 
@@ -566,23 +557,25 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf, /* StringInfo is 
   appendStringInfoString(buf, unpack_sql_state(edata->sqlerrcode));
   appendStringInfoCharMacro(buf, ',');
 
-  /* errmessage */
-  appendStringInfoCsvLiteral(buf, edata->message);
+  /* errmessage - PGAUDIT formatted text, +7 exclude "AUDIT: " prefix */
+  appendStringInfoString(buf, edata->message+7);
   appendStringInfoCharMacro(buf, ',');
 
   /* errdetail or errdetail_log */
   if (edata->detail_log)
-    appendStringInfoCsvLiteral(buf, edata->detail_log);
-  else
-    appendStringInfoCsvLiteral(buf, edata->detail);
+    appendStringInfoString(buf, edata->detail_log);
+  else if (edata->detail)
+    appendStringInfoString(buf, edata->detail);
   appendStringInfoCharMacro(buf, ',');
 
   /* errhint */
-  appendStringInfoCsvLiteral(buf, edata->hint);
+  if (edata->hint)
+    appendStringInfoString(buf, edata->hint);
   appendStringInfoCharMacro(buf, ',');
 
   /* internal query */
-  appendStringInfoCsvLiteral(buf, edata->internalquery);
+  if (edata->internalquery)
+    appendStringInfoString(buf, edata->internalquery);
   appendStringInfoCharMacro(buf, ',');
 
   /* if printed internal query, print internal pos too */
@@ -591,14 +584,15 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf, /* StringInfo is 
   appendStringInfoCharMacro(buf, ',');
 
   /* errcontext */
-  appendStringInfoCsvLiteral(buf, edata->context);
+  if (edata->context)
+    appendStringInfoString(buf, edata->context);
   appendStringInfoCharMacro(buf, ',');
 
   /* user query --- only reported if not disabled by the caller */
   if (debug_query_string != NULL && !edata->hide_stmt)
     print_stmt = true;
   if (print_stmt)
-    appendStringInfoCsvLiteral(buf, debug_query_string);
+    appendStringInfoString(buf, debug_query_string);
   appendStringInfoCharMacro(buf, ',');
   if (print_stmt && edata->cursorpos > 0)
     appendStringInfo(buf, "%d", edata->cursorpos);
@@ -615,37 +609,16 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf, /* StringInfo is 
                        edata->lineno);
     else if (edata->filename)
       appendStringInfo(&msgbuf, "%s:%d", edata->filename, edata->lineno);
-    appendStringInfoCsvLiteral(buf, msgbuf.data);
+    appendStringInfoString(buf, msgbuf.data);
     pfree(msgbuf.data);
   }
   appendStringInfoCharMacro(buf, ',');
 
   /* application name */
   if (application_name)
-    appendStringInfoCsvLiteral(buf, application_name);
+    appendStringInfoString(buf, application_name);
 
   appendStringInfoCharMacro(buf, '\n');
-}
-
-/*
- * Appends a literal to the CSV
- */
-static inline void appendStringInfoCsvLiteral(StringInfo buf,
-                                                       const char *data) {
-  const char *p = data;
-  char c;
-
-  /* avoid confusing an empty string with NULL */
-  if (p == NULL)
-    return;
-
-  appendStringInfoCharMacro(buf, '"');
-  while ((c = *p++) != '\0') {
-    if (c == '"')
-      appendStringInfoCharMacro(buf, '"');
-    appendStringInfoCharMacro(buf, c);
-  }
-  appendStringInfoCharMacro(buf, '"');
 }
 
 /*
