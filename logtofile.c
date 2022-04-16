@@ -34,6 +34,12 @@
 /* Defines */
 #define PGAUDIT_PREFIX_LINE "AUDIT: "
 #define PGAUDIT_PREFIX_LINE_LENGTH 7
+#define INTERCEPT_DISCONNECTION_PREFIX "disconnection: session time:"
+#define INTERCEPT_DISCONNECTION_PREFIX_LENGTH 28
+#define INTERCEPT_CONNECTION_PREFIX1 "connection authorized: user="
+#define INTERCEPT_CONNECTION_PREFIX1_LENGTH 28
+#define INTERCEPT_CONNECTION_PREFIX2 "connection received: host="
+#define INTERCEPT_CONNECTION_PREFIX2_LENGTH 26
 #define FORMATTED_TS_LEN 128
 
 /*
@@ -71,6 +77,8 @@ char *guc_pgaudit_log_directory = NULL;
 char *guc_pgaudit_log_filename = NULL;
 // Default 1 day rotation
 int guc_pgaudit_log_rotation_age = HOURS_PER_DAY * MINS_PER_HOUR;
+bool guc_pgaudit_log_connections = false;
+bool guc_pgaudit_log_disconnections = false;
 
 /* Old hook storage for loading/unloading of the extension */
 static emit_log_hook_type prev_emit_log_hook = NULL;
@@ -86,25 +94,22 @@ static void guc_assign_filename(const char *newval, void *extra);
 static bool guc_check_directory(char **newval, void **extra, GucSource source);
 static void guc_assign_rotation_age(int newval, void *extra);
 
+static void pgauditlogtofile_request_rotation(void);
 static void pgauditlogtofile_calculate_filename(void);
 static pg_time_t pgauditlogtofile_calculate_next_rotation_time(void);
 static void pgauditlogtofile_close_file(void);
-static void pgauditlogtofile_format_audit_line(StringInfo buf,
-                                               ErrorData *edata);
+static void pgauditlogtofile_format_audit_line(StringInfo buf, const ErrorData *edata, int exclude_nchars);
 static void pgauditlogtofile_format_log_time(void);
 static void pgauditlogtofile_format_start_time(void);
 static bool pgauditlogtofile_is_enabled(void);
 static bool pgauditlogtofile_is_open_file(void);
 static bool pgauditlogtofile_needs_rotate_file(void);
 static bool pgauditlogtofile_open_file(void);
-static bool pgauditlogtofile_record_audit(ErrorData *edata);
-static bool pgauditlogtofile_write_audit(ErrorData *edata);
+static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars);
+static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars);
 
 
-/*
- * GUC Callback pgaudit.log_directory changes
- */
-static void guc_assign_directory(const char *newval, void *extra) {
+static void pgauditlogtofile_request_rotation(void) {
   /* Directory is changed force a rotation */
   if (UsedShmemSegAddr == NULL)
   	return;
@@ -117,18 +122,17 @@ static void guc_assign_directory(const char *newval, void *extra) {
 }
 
 /*
+ * GUC Callback pgaudit.log_directory changes
+ */
+static void guc_assign_directory(const char *newval, void *extra) {
+  pgauditlogtofile_request_rotation();
+}
+
+/*
  * GUC Callback pgaudit.log_filename changes
  */
 static void guc_assign_filename(const char *newval, void *extra) {
-  /* File name is changed; force a rotation */
-  if (UsedShmemSegAddr == NULL)
-  	return;
-
-  if (!pgaudit_log_shm->force_rotation) {
-    LWLockAcquire(pgaudit_log_shm->lock, LW_EXCLUSIVE);
-    pgaudit_log_shm->force_rotation = true;
-    LWLockRelease(pgaudit_log_shm->lock);
-  }
+  pgauditlogtofile_request_rotation();
 }
 
 /*
@@ -147,40 +151,45 @@ static bool guc_check_directory(char **newval, void **extra, GucSource source) {
  * GUC Callback pgaudit.rotation_age changes
  */
 static void guc_assign_rotation_age(int newval, void *extra) {
-  /* Rotation policy is changeg; force a rotation */
-  if (UsedShmemSegAddr == NULL)
-  	return;
-
-  if (!pgaudit_log_shm->force_rotation) {
-    LWLockAcquire(pgaudit_log_shm->lock, LW_EXCLUSIVE);
-    pgaudit_log_shm->force_rotation = true;
-    LWLockRelease(pgaudit_log_shm->lock);
-  }
+  pgauditlogtofile_request_rotation();
 }
 
 /*
  * Extension Init Callback
  */
 void _PG_init(void) {
-  DefineCustomStringVariable("pgaudit.log_directory",
-                             "Directory where to spool log data", NULL,
-                             &guc_pgaudit_log_directory, "log", PGC_SIGHUP,
-                             GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
-                             guc_check_directory, guc_assign_directory, NULL);
+  DefineCustomStringVariable(
+    "pgaudit.log_directory",
+    "Directory where to spool log data", NULL,
+    &guc_pgaudit_log_directory, "log", PGC_SIGHUP,
+    GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+    guc_check_directory, guc_assign_directory, NULL);
 
   DefineCustomStringVariable(
-      "pgaudit.log_filename",
-      "Filename with time patterns (up to minutes) where to spool audit data",
-      NULL, &guc_pgaudit_log_filename, "audit-%Y%m%d_%H%M.log", PGC_SIGHUP,
-      GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY, NULL, guc_assign_filename, NULL);
+    "pgaudit.log_filename",
+    "Filename with time patterns (up to minutes) where to spool audit data",
+    NULL, &guc_pgaudit_log_filename, "audit-%Y%m%d_%H%M.log", PGC_SIGHUP,
+    GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY, NULL, guc_assign_filename, NULL);
 
   DefineCustomIntVariable(
-      "pgaudit.log_rotation_age",
-      "Automatic spool file rotation will occur after N minutes", NULL,
-      &guc_pgaudit_log_rotation_age, HOURS_PER_DAY * MINS_PER_HOUR, 0,
-      INT_MAX / SECS_PER_MINUTE, PGC_SIGHUP,
-      GUC_NOT_IN_SAMPLE | GUC_UNIT_MIN | GUC_SUPERUSER_ONLY, NULL,
-      guc_assign_rotation_age, NULL);
+    "pgaudit.log_rotation_age",
+    "Automatic spool file rotation will occur after N minutes", NULL,
+    &guc_pgaudit_log_rotation_age, HOURS_PER_DAY * MINS_PER_HOUR, 0,
+    INT_MAX / SECS_PER_MINUTE, PGC_SIGHUP,
+    GUC_NOT_IN_SAMPLE | GUC_UNIT_MIN | GUC_SUPERUSER_ONLY, NULL,
+    guc_assign_rotation_age, NULL);
+
+  DefineCustomBoolVariable(
+    "pgaudit.log_connections",
+    "Intercepts log_connections messages", NULL,
+    &guc_pgaudit_log_connections, false, PGC_SIGHUP,
+    GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY, NULL, NULL, NULL);
+
+  DefineCustomBoolVariable(
+    "pgaudit.log_disconnections",
+    "Intercepts log_disconnections messages", NULL,
+    &guc_pgaudit_log_disconnections, false, PGC_SIGHUP,
+    GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY, NULL, NULL, NULL);
 
   EmitWarningsOnPlaceholders("pgauditlogtofile");
 
@@ -235,24 +244,35 @@ static void pgauditlogtofile_shmem_startup(void) {
  * logger
  */
 static void pgauditlogtofile_emit_log(ErrorData *edata) {
-  /* pgauditlogtofile disable or not a pgaudit log line, call other hooks and return */
-  if (!pgauditlogtofile_is_enabled() ||
-        pg_strncasecmp(edata->message, PGAUDIT_PREFIX_LINE,
-          PGAUDIT_PREFIX_LINE_LENGTH) != 0) {
-    if (prev_emit_log_hook)
-      prev_emit_log_hook(edata);
+  int exclude_nchars = -2;
 
-    return;
+  if (pgauditlogtofile_is_enabled()) {
+    // printf("ENABLE PRINTF\n");
+    if (pg_strncasecmp(edata->message, PGAUDIT_PREFIX_LINE, PGAUDIT_PREFIX_LINE_LENGTH) == 0)
+      exclude_nchars = PGAUDIT_PREFIX_LINE_LENGTH;
+    else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX1, INTERCEPT_CONNECTION_PREFIX1_LENGTH) == 0)
+      exclude_nchars = 0;
+    else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX2, INTERCEPT_CONNECTION_PREFIX2_LENGTH) == 0) {
+      // We want to hide "connection received" messages, but we cannot log them because MyProcPort is not fully populated yet
+      exclude_nchars = -1;
+    }
+    else if (pg_strncasecmp(edata->message, INTERCEPT_DISCONNECTION_PREFIX, INTERCEPT_DISCONNECTION_PREFIX_LENGTH) == 0)
+      exclude_nchars = 0;
+
+    if (exclude_nchars == -1) {
+      edata->output_to_server = false;
+    }
+
+    if (exclude_nchars >= 0) {
+      if (pgauditlogtofile_record_audit(edata, exclude_nchars)) {
+        /* Inhibit logging in server log */
+        edata->output_to_server = false;
+      }
+    }
   }
 
-  if (pgauditlogtofile_record_audit(edata)) {
-    /* Inhibit logging in server log */
-    edata->output_to_server = false;
-  } else {
-    /* Failed to write the audit in logfile, fallback to any default log */
-    if (prev_emit_log_hook)
-      prev_emit_log_hook(edata);
-  }
+  if (prev_emit_log_hook)
+    prev_emit_log_hook(edata);
 }
 
 /*
@@ -271,7 +291,7 @@ static inline bool pgauditlogtofile_is_enabled(void) {
 /*
  * Records an audit log
  */
-static bool pgauditlogtofile_record_audit(ErrorData *edata) {
+static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars) {
   if (pgauditlogtofile_needs_rotate_file()) {
     // calculate_filename will generate a new global file
     pgauditlogtofile_calculate_filename();
@@ -285,7 +305,7 @@ static bool pgauditlogtofile_record_audit(ErrorData *edata) {
     }
   }
 
-  return pgauditlogtofile_write_audit(edata);
+  return pgauditlogtofile_write_audit(edata, exclude_nchars);
 }
 
 /*
@@ -429,13 +449,13 @@ static void pgauditlogtofile_calculate_filename(void) {
 /*
  * Writes an audit record in the audit log file
  */
-static bool pgauditlogtofile_write_audit(ErrorData *edata) {
+static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars) {
   StringInfoData buf;
   int rc;
 
   initStringInfo(&buf);
   /* format the log line */
-  pgauditlogtofile_format_audit_line(&buf, edata);
+  pgauditlogtofile_format_audit_line(&buf, edata, exclude_nchars);
 
   fseek(file_handler, 0L, SEEK_END);
   rc = fwrite(buf.data, 1, buf.len, file_handler);
@@ -457,8 +477,7 @@ static bool pgauditlogtofile_write_audit(ErrorData *edata) {
 /*
  * Formats an audit log line
  */
-static void pgauditlogtofile_format_audit_line(StringInfo buf, /* StringInfo is StringInfoData * */
-                                               ErrorData *edata) {
+static void pgauditlogtofile_format_audit_line(StringInfo buf, const ErrorData *edata, int exclude_nchars) {
   bool print_stmt = false;
 
   /* static counter for line numbers */
@@ -553,7 +572,7 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf, /* StringInfo is 
   appendStringInfoCharMacro(buf, ',');
 
   /* errmessage - PGAUDIT formatted text, +7 exclude "AUDIT: " prefix */
-  appendStringInfoString(buf, edata->message + PGAUDIT_PREFIX_LINE_LENGTH);
+  appendStringInfoString(buf, edata->message + exclude_nchars);
   appendStringInfoCharMacro(buf, ',');
 
   /* errdetail or errdetail_log */
