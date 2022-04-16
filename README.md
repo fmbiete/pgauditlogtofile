@@ -52,6 +52,23 @@ Number of minutes after which the audit file will be rotated.
 
 0 will disable the rotation
 
+### pgaudit.log_connections
+Intercepts server log messages emited when log_connections is on
+
+**Scope**: System
+
+**Default**: off
+
+**Requires**: log_connections = on
+
+### pgaudit.log_disconnections
+Intercepts server log messages emited when log_disconnections is on
+
+**Scope**: System
+
+**Default**: off
+
+**Requires**: log_disconnections = on
 
 ### Test
 ```
