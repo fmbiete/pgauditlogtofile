@@ -259,14 +259,13 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
     else if (pg_strncasecmp(edata->message, INTERCEPT_DISCONNECTION_PREFIX, INTERCEPT_DISCONNECTION_PREFIX_LENGTH) == 0)
       exclude_nchars = 0;
 
-    if (exclude_nchars == -1) {
-      edata->output_to_server = false;
-    }
-
-    if (exclude_nchars >= 0) {
-      if (pgauditlogtofile_record_audit(edata, exclude_nchars)) {
-        /* Inhibit logging in server log */
+    if (exclude_nchars > -2) {
+      if (exclude_nchars == -1 || MyProc == NULL) {
         edata->output_to_server = false;
+      } else {
+        if (pgauditlogtofile_record_audit(edata, exclude_nchars)) {
+          edata->output_to_server = false;
+        }
       }
     }
   }
