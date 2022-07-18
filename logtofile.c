@@ -33,13 +33,15 @@
 
 /* Defines */
 #define PGAUDIT_PREFIX_LINE "AUDIT: "
-#define PGAUDIT_PREFIX_LINE_LENGTH 7
+#define PGAUDIT_PREFIX_LINE_LENGTH sizeof(PGAUDIT_PREFIX_LINE) - 1
 #define INTERCEPT_DISCONNECTION_PREFIX "disconnection: session time:"
-#define INTERCEPT_DISCONNECTION_PREFIX_LENGTH 28
+#define INTERCEPT_DISCONNECTION_PREFIX_LENGTH sizeof(INTERCEPT_DISCONNECTION_PREFIX) - 1
 #define INTERCEPT_CONNECTION_PREFIX1 "connection authorized: user="
-#define INTERCEPT_CONNECTION_PREFIX1_LENGTH 28
+#define INTERCEPT_CONNECTION_PREFIX1_LENGTH sizeof(INTERCEPT_CONNECTION_PREFIX1) - 1
 #define INTERCEPT_CONNECTION_PREFIX2 "connection received: host="
-#define INTERCEPT_CONNECTION_PREFIX2_LENGTH 26
+#define INTERCEPT_CONNECTION_PREFIX2_LENGTH sizeof(INTERCEPT_CONNECTION_PREFIX2) - 1
+#define INTERCEPT_CONNECTION_PREFIX3 "password authentication failed for user"
+#define INTERCEPT_CONNECTION_PREFIX3_LENGTH sizeof(INTERCEPT_CONNECTION_PREFIX3) - 1
 #define FORMATTED_TS_LEN 128
 
 /*
@@ -244,27 +246,41 @@ static void pgauditlogtofile_shmem_startup(void) {
  * logger
  */
 static void pgauditlogtofile_emit_log(ErrorData *edata) {
-  int exclude_nchars = -2;
+  // server log
+  // logging only
+  // logging only, skip n-chars
+  // logging and server log
+
+  int exclude_nchars = -1;
 
   if (pgauditlogtofile_is_enabled()) {
-    if (pg_strncasecmp(edata->message, PGAUDIT_PREFIX_LINE, PGAUDIT_PREFIX_LINE_LENGTH) == 0)
+    // printf("ENABLE PRINTF\n");
+    if (pg_strncasecmp(edata->message, PGAUDIT_PREFIX_LINE, PGAUDIT_PREFIX_LINE_LENGTH) == 0) {
       exclude_nchars = PGAUDIT_PREFIX_LINE_LENGTH;
-    else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX1, INTERCEPT_CONNECTION_PREFIX1_LENGTH) == 0)
-      exclude_nchars = 0;
-    else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX2, INTERCEPT_CONNECTION_PREFIX2_LENGTH) == 0) {
-      // We want to hide "connection received" messages, but we cannot log them because MyProcPort is not fully populated yet
-      exclude_nchars = -1;
+      edata->output_to_server = false;
     }
-    else if (pg_strncasecmp(edata->message, INTERCEPT_DISCONNECTION_PREFIX, INTERCEPT_DISCONNECTION_PREFIX_LENGTH) == 0)
+    else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX1, INTERCEPT_CONNECTION_PREFIX1_LENGTH) == 0) {
+      edata->output_to_server = false;
       exclude_nchars = 0;
+    }
+    else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX2, INTERCEPT_CONNECTION_PREFIX2_LENGTH) == 0) {
+      edata->output_to_server = false;
+      // We want to hide "connection received" messages, but we cannot log them because MyProcPort is not fully populated yet
+      exclude_nchars = 0;
+    }
+    else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX3, INTERCEPT_CONNECTION_PREFIX3_LENGTH) == 0) {
+      edata->output_to_server = true;
+      exclude_nchars = 0;
+    }
+    else if (pg_strncasecmp(edata->message, INTERCEPT_DISCONNECTION_PREFIX, INTERCEPT_DISCONNECTION_PREFIX_LENGTH) == 0) {
+      edata->output_to_server = false;
+      exclude_nchars = 0;
+    }
 
-    if (exclude_nchars > -2) {
-      if (exclude_nchars == -1 || MyProc == NULL) {
-        edata->output_to_server = false;
-      } else {
-        if (pgauditlogtofile_record_audit(edata, exclude_nchars)) {
-          edata->output_to_server = false;
-        }
+    if (exclude_nchars >= 0) {
+      if (!pgauditlogtofile_record_audit(edata, exclude_nchars)) {
+        // ERROR: failed to record in audit, record in server log
+        edata->output_to_server = true;
       }
     }
   }
@@ -277,7 +293,7 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
  * Checks if pgauditlogtofile is completely started and configured
  */
 static inline bool pgauditlogtofile_is_enabled(void) {
-  if (!pgaudit_log_shm || guc_pgaudit_log_directory == NULL ||
+  if (!MyProc || !pgaudit_log_shm || guc_pgaudit_log_directory == NULL ||
       guc_pgaudit_log_filename == NULL ||
       strlen(guc_pgaudit_log_directory) == 0 ||
       strlen(guc_pgaudit_log_filename) == 0)
