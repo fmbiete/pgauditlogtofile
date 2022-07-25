@@ -471,12 +471,10 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
   initStringInfo(&buf);
   /* format the log line */
   pgauditlogtofile_format_audit_line(&buf, edata, exclude_nchars);
-  LWLockAcquire(pgaudit_log_shm->lock, LW_EXCLUSIVE);
   fseek(file_handler, 0L, SEEK_END);
   rc = fwrite(buf.data, 1, buf.len, file_handler);
   pfree(buf.data);
   fflush(file_handler);
-  LWLockRelease(pgaudit_log_shm->lock);
 
   /* If we failed to write the audit to our audit log, use PostgreSQL logger */
   if (rc != buf.len) {
