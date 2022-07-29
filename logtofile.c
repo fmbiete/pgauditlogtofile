@@ -255,7 +255,6 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
 
   if (pgauditlogtofile_is_enabled()) {
     // printf("ENABLE PRINTF\n");
-
     if (pg_strncasecmp(edata->message, PGAUDIT_PREFIX_LINE, PGAUDIT_PREFIX_LINE_LENGTH) == 0) {
       exclude_nchars = PGAUDIT_PREFIX_LINE_LENGTH;
       edata->output_to_server = false;
@@ -355,11 +354,6 @@ static bool pgauditlogtofile_needs_rotate_file(void) {
     return true;
   }
 
-  /* Rotate if the global name is different to this backend copy: it has been
-   * rotated */
-  if (strcmp(filename_in_use, pgaudit_log_shm->filename) != 0) {
-    return true;
-  }
 
   /* Rotate if rotation_age is exceeded, and this backend is the first in notice
    * it */
@@ -368,6 +362,12 @@ static bool pgauditlogtofile_needs_rotate_file(void) {
     pgaudit_log_shm->next_rotation_time =
         pgauditlogtofile_calculate_next_rotation_time();
     LWLockRelease(pgaudit_log_shm->lock);
+    return true;
+  }
+
+  /* Rotate if the global name is different to this backend copy: it has been
+   * rotated */
+  if (strcmp(filename_in_use, pgaudit_log_shm->filename) != 0) {
     return true;
   }
 
@@ -471,7 +471,6 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
   initStringInfo(&buf);
   /* format the log line */
   pgauditlogtofile_format_audit_line(&buf, edata, exclude_nchars);
-
   fseek(file_handler, 0L, SEEK_END);
   rc = fwrite(buf.data, 1, buf.len, file_handler);
   pfree(buf.data);
