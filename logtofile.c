@@ -63,9 +63,7 @@ static char formatted_log_time[FORMATTED_TS_LEN];
 typedef struct pgAuditLogToFileShm {
   LWLock *lock;
 
-  char filename[MAXPGPATH];
   bool force_rotation;
-  pg_time_t next_rotation_time;
 } pgAuditLogToFileShm;
 
 static pgAuditLogToFileShm *pgaudit_log_shm = NULL;
@@ -73,6 +71,8 @@ static pgAuditLogToFileShm *pgaudit_log_shm = NULL;
 /* Audit log file handler */
 static FILE *file_handler = NULL;
 static char filename_in_use[MAXPGPATH];
+static char filename[MAXPGPATH];
+pg_time_t next_rotation_time;
 
 /* GUC variables */
 char *guc_pgaudit_log_directory = NULL;
@@ -98,9 +98,9 @@ static void guc_assign_rotation_age(int newval, void *extra);
 
 static void pgauditlogtofile_request_rotation(void);
 static void pgauditlogtofile_calculate_filename(void);
-static pg_time_t pgauditlogtofile_calculate_next_rotation_time(void);
+static void pgauditlogtofile_calculate_next_rotation_time(void);
 static void pgauditlogtofile_close_file(void);
-static void pgauditlogtofile_format_audit_line(StringInfo buf, const ErrorData *edata, int exclude_nchars);
+static void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, int exclude_nchars);
 static void pgauditlogtofile_format_log_time(void);
 static void pgauditlogtofile_format_start_time(void);
 static bool pgauditlogtofile_is_enabled(void);
@@ -225,14 +225,12 @@ static void pgauditlogtofile_shmem_startup(void) {
   pgaudit_log_shm = NULL;
 
   LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
-  pgaudit_log_shm =
-      ShmemInitStruct("pgauditlogtofile", sizeof(pgAuditLogToFileShm), &found);
+  pgaudit_log_shm = ShmemInitStruct("pgauditlogtofile", sizeof(pgAuditLogToFileShm), &found);
   if (!found) {
     pgaudit_log_shm->lock = &(GetNamedLWLockTranche("pgauditlogtofile"))->lock;
-    /* We force a rotation on initialization */
-    pgaudit_log_shm->force_rotation = true;
-    pgaudit_log_shm->next_rotation_time =
-        pgauditlogtofile_calculate_next_rotation_time();
+    pgaudit_log_shm->force_rotation = false;
+    pgauditlogtofile_calculate_next_rotation_time();
+    pgauditlogtofile_calculate_filename();
   }
   LWLockRelease(AddinShmemInitLock);
 
@@ -246,11 +244,6 @@ static void pgauditlogtofile_shmem_startup(void) {
  * logger
  */
 static void pgauditlogtofile_emit_log(ErrorData *edata) {
-  // server log
-  // logging only
-  // logging only, skip n-chars
-  // logging and server log
-
   int exclude_nchars = -1;
 
   if (pgauditlogtofile_is_enabled()) {
@@ -265,11 +258,10 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
     }
     else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX2, INTERCEPT_CONNECTION_PREFIX2_LENGTH) == 0) {
       edata->output_to_server = false;
-      // We want to hide "connection received" messages, but we cannot log them because MyProcPort is not fully populated yet
       exclude_nchars = 0;
     }
     else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX3, INTERCEPT_CONNECTION_PREFIX3_LENGTH) == 0) {
-      edata->output_to_server = true;
+      edata->output_to_server = false;
       exclude_nchars = 0;
     }
     else if (pg_strncasecmp(edata->message, INTERCEPT_DISCONNECTION_PREFIX, INTERCEPT_DISCONNECTION_PREFIX_LENGTH) == 0) {
@@ -293,7 +285,7 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
  * Checks if pgauditlogtofile is completely started and configured
  */
 static inline bool pgauditlogtofile_is_enabled(void) {
-  if (!MyProc || !pgaudit_log_shm || guc_pgaudit_log_directory == NULL ||
+  if (!pgaudit_log_shm || guc_pgaudit_log_directory == NULL ||
       guc_pgaudit_log_filename == NULL ||
       strlen(guc_pgaudit_log_directory) == 0 ||
       strlen(guc_pgaudit_log_filename) == 0)
@@ -354,20 +346,16 @@ static bool pgauditlogtofile_needs_rotate_file(void) {
     return true;
   }
 
-
   /* Rotate if rotation_age is exceeded, and this backend is the first in notice
    * it */
-  if ((pg_time_t)time(NULL) >= pgaudit_log_shm->next_rotation_time) {
-    LWLockAcquire(pgaudit_log_shm->lock, LW_EXCLUSIVE);
-    pgaudit_log_shm->next_rotation_time =
-        pgauditlogtofile_calculate_next_rotation_time();
-    LWLockRelease(pgaudit_log_shm->lock);
+  if ((pg_time_t)time(NULL) >= next_rotation_time) {
+    pgauditlogtofile_calculate_next_rotation_time();
     return true;
   }
 
   /* Rotate if the global name is different to this backend copy: it has been
    * rotated */
-  if (strcmp(filename_in_use, pgaudit_log_shm->filename) != 0) {
+  if (strcmp(filename_in_use, filename) != 0) {
     return true;
   }
 
@@ -377,7 +365,7 @@ static bool pgauditlogtofile_needs_rotate_file(void) {
 /*
  * Calculates next rotation time
  */
-static pg_time_t pgauditlogtofile_calculate_next_rotation_time(void) {
+static void pgauditlogtofile_calculate_next_rotation_time(void) {
   pg_time_t now = (pg_time_t)time(NULL);
   struct pg_tm *tm = pg_localtime(&now, log_timezone);
   int rotinterval =
@@ -390,7 +378,7 @@ static pg_time_t pgauditlogtofile_calculate_next_rotation_time(void) {
   now += rotinterval;
   now -= tm->tm_gmtoff;
 
-  return now;
+  next_rotation_time = now;
 }
 
 /*
@@ -415,7 +403,7 @@ static bool pgauditlogtofile_open_file(void) {
   LWLockAcquire(pgaudit_log_shm->lock, LW_SHARED);
   oumask = umask(
       (mode_t)((~(Log_file_mode | S_IWUSR)) & (S_IRWXU | S_IRWXG | S_IRWXO)));
-  file_handler = fopen(pgaudit_log_shm->filename, "a");
+  file_handler = fopen(filename, "a");
   umask(oumask);
 
   if (file_handler) {
@@ -426,13 +414,13 @@ static bool pgauditlogtofile_open_file(void) {
     _setmode(_fileno(file_handler), _O_TEXT);
 #endif
     // File open, we update the pgaudit_log_shm->filename we are using
-    strcpy(filename_in_use, pgaudit_log_shm->filename);
+    strcpy(filename_in_use, filename);
   } else {
     int save_errno = errno;
     opened = false;
     ereport(WARNING, (errcode_for_file_access(),
                       errmsg("could not open log file \"%s\": %m",
-                             pgaudit_log_shm->filename)));
+                             filename)));
     errno = save_errno;
   }
   LWLockRelease(pgaudit_log_shm->lock);
@@ -446,19 +434,17 @@ static bool pgauditlogtofile_open_file(void) {
 static void pgauditlogtofile_calculate_filename(void) {
   int len;
   pg_time_t current_rotation_time =
-      pgaudit_log_shm->next_rotation_time -
+      next_rotation_time -
       guc_pgaudit_log_rotation_age * SECS_PER_MINUTE;
 
-  LWLockAcquire(pgaudit_log_shm->lock, LW_EXCLUSIVE);
-  memset(pgaudit_log_shm->filename, 0, sizeof(pgaudit_log_shm->filename));
-  snprintf(pgaudit_log_shm->filename, MAXPGPATH, "%s/",
+  memset(filename, 0, sizeof(filename));
+  snprintf(filename, MAXPGPATH, "%s/",
            guc_pgaudit_log_directory);
-  len = strlen(pgaudit_log_shm->filename);
+  len = strlen(filename);
   /* treat Log_pgaudit_log_shm->filename as a strftime pattern */
-  pg_strftime(pgaudit_log_shm->filename + len, MAXPGPATH - len,
+  pg_strftime(filename + len, MAXPGPATH - len,
               guc_pgaudit_log_filename,
               pg_localtime(&current_rotation_time, log_timezone));
-  LWLockRelease(pgaudit_log_shm->lock);
 }
 
 /*
@@ -469,8 +455,9 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
   int rc;
 
   initStringInfo(&buf);
-  /* format the log line */
-  pgauditlogtofile_format_audit_line(&buf, edata, exclude_nchars);
+  /* create the log line */
+  pgauditlogtofile_create_audit_line(&buf, edata, exclude_nchars);
+
   fseek(file_handler, 0L, SEEK_END);
   rc = fwrite(buf.data, 1, buf.len, file_handler);
   pfree(buf.data);
@@ -481,7 +468,7 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
     int save_errno = errno;
     ereport(WARNING, (errcode_for_file_access(),
                       errmsg("could not write audit log file \"%s\": %m",
-                             pgaudit_log_shm->filename)));
+                             filename)));
     errno = save_errno;
   }
 
@@ -491,7 +478,7 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
 /*
  * Formats an audit log line
  */
-static void pgauditlogtofile_format_audit_line(StringInfo buf, const ErrorData *edata, int exclude_nchars) {
+static void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, int exclude_nchars) {
   bool print_stmt = false;
 
   /* static counter for line numbers */
@@ -520,12 +507,12 @@ static void pgauditlogtofile_format_audit_line(StringInfo buf, const ErrorData *
   appendStringInfoCharMacro(buf, ',');
 
   /* username */
-  if (MyProcPort)
+  if (MyProcPort && MyProcPort->user_name)
     appendStringInfoString(buf, MyProcPort->user_name);
   appendStringInfoCharMacro(buf, ',');
 
   /* database name */
-  if (MyProcPort)
+  if (MyProcPort && MyProcPort->database_name)
     appendStringInfoString(buf, MyProcPort->database_name);
   appendStringInfoCharMacro(buf, ',');
 
