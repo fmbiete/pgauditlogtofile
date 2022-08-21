@@ -400,7 +400,6 @@ static bool pgauditlogtofile_open_file(void) {
    * to be able to write the files ourselves.
    */
 
-  LWLockAcquire(pgaudit_log_shm->lock, LW_SHARED);
   oumask = umask(
       (mode_t)((~(Log_file_mode | S_IWUSR)) & (S_IRWXU | S_IRWXG | S_IRWXO)));
   file_handler = fopen(filename, "a");
@@ -423,7 +422,6 @@ static bool pgauditlogtofile_open_file(void) {
                              filename)));
     errno = save_errno;
   }
-  LWLockRelease(pgaudit_log_shm->lock);
 
   return opened;
 }
