@@ -34,14 +34,6 @@
 /* Defines */
 #define PGAUDIT_PREFIX_LINE "AUDIT: "
 #define PGAUDIT_PREFIX_LINE_LENGTH sizeof(PGAUDIT_PREFIX_LINE) - 1
-#define INTERCEPT_DISCONNECTION_PREFIX "disconnection: session time:"
-#define INTERCEPT_DISCONNECTION_PREFIX_LENGTH sizeof(INTERCEPT_DISCONNECTION_PREFIX) - 1
-#define INTERCEPT_CONNECTION_PREFIX1 "connection authorized: user="
-#define INTERCEPT_CONNECTION_PREFIX1_LENGTH sizeof(INTERCEPT_CONNECTION_PREFIX1) - 1
-#define INTERCEPT_CONNECTION_PREFIX2 "connection received: host="
-#define INTERCEPT_CONNECTION_PREFIX2_LENGTH sizeof(INTERCEPT_CONNECTION_PREFIX2) - 1
-#define INTERCEPT_CONNECTION_PREFIX3 "password authentication failed for user"
-#define INTERCEPT_CONNECTION_PREFIX3_LENGTH sizeof(INTERCEPT_CONNECTION_PREFIX3) - 1
 #define FORMATTED_TS_LEN 128
 
 /*
@@ -54,6 +46,27 @@
 #else
 #define LBF_MODE _IOLBF
 #endif
+
+/* Line prefixes ot intercept */
+#define PGAUDITLOGTOFILE_NUM_PREFIXES 6
+
+static const char * pgAuditLogToFilePrefixes[] = {
+  "connection authenticated: identity=",
+  "connection authorized: user=",
+  "connection received: host=",
+  "disconnection: session time:",
+  "password authentication failed for user",
+  "replication connection authorized: user="
+};
+
+static const int pgAuditLogToFilePrefixesLen[] = {
+  35,
+  28,
+  26,
+  28,
+  39,
+  40
+};
 
 /* Buffers for formatted timestamps */
 static char formatted_start_time[FORMATTED_TS_LEN];
@@ -105,6 +118,7 @@ static void pgauditlogtofile_format_log_time(void);
 static void pgauditlogtofile_format_start_time(void);
 static bool pgauditlogtofile_is_enabled(void);
 static bool pgauditlogtofile_is_open_file(void);
+static bool pgauditlogtofile_is_prefixed(const char *msg);
 static bool pgauditlogtofile_needs_rotate_file(void);
 static bool pgauditlogtofile_open_file(void);
 static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars);
@@ -252,19 +266,7 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
       exclude_nchars = PGAUDIT_PREFIX_LINE_LENGTH;
       edata->output_to_server = false;
     }
-    else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX1, INTERCEPT_CONNECTION_PREFIX1_LENGTH) == 0) {
-      edata->output_to_server = false;
-      exclude_nchars = 0;
-    }
-    else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX2, INTERCEPT_CONNECTION_PREFIX2_LENGTH) == 0) {
-      edata->output_to_server = false;
-      exclude_nchars = 0;
-    }
-    else if (pg_strncasecmp(edata->message, INTERCEPT_CONNECTION_PREFIX3, INTERCEPT_CONNECTION_PREFIX3_LENGTH) == 0) {
-      edata->output_to_server = false;
-      exclude_nchars = 0;
-    }
-    else if (pg_strncasecmp(edata->message, INTERCEPT_DISCONNECTION_PREFIX, INTERCEPT_DISCONNECTION_PREFIX_LENGTH) == 0) {
+    else if (pgauditlogtofile_is_prefixed(edata->message)) {
       edata->output_to_server = false;
       exclude_nchars = 0;
     }
@@ -332,6 +334,17 @@ static inline bool pgauditlogtofile_is_open_file(void) {
     return true;
   else
     return false;
+}
+
+/*
+ * Checks if a message starts with one of our intercept prefixes
+ */
+static inline bool pgauditlogtofile_is_prefixed(const char *msg) {
+  bool found = false;
+  for (int i = 0; !found && i < PGAUDITLOGTOFILE_NUM_PREFIXES; i++) {
+    found = pg_strncasecmp(msg, pgAuditLogToFilePrefixes[i], pgAuditLogToFilePrefixesLen[i]) == 0;
+  }
+  return found;
 }
 
 /*
