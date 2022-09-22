@@ -341,7 +341,8 @@ static inline bool pgauditlogtofile_is_open_file(void) {
  */
 static inline bool pgauditlogtofile_is_prefixed(const char *msg) {
   bool found = false;
-  for (int i = 0; !found && i < PGAUDITLOGTOFILE_NUM_PREFIXES; i++) {
+  int i;
+  for (i = 0; !found && i < PGAUDITLOGTOFILE_NUM_PREFIXES; i++) {
     found = pg_strncasecmp(msg, pgAuditLogToFilePrefixes[i], pgAuditLogToFilePrefixesLen[i]) == 0;
   }
   return found;
