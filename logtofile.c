@@ -47,25 +47,29 @@
 #define LBF_MODE _IOLBF
 #endif
 
-/* Line prefixes ot intercept */
-#define PGAUDITLOGTOFILE_NUM_PREFIXES 6
-
-static const char * pgAuditLogToFilePrefixes[] = {
+static const char * pgAuditLogToFileConnPrefixes[] = {
   "connection authenticated: identity=",
   "connection authorized: user=",
   "connection received: host=",
-  "disconnection: session time:",
   "password authentication failed for user",
   "replication connection authorized: user="
 };
 
-static const int pgAuditLogToFilePrefixesLen[] = {
+static const int pgAuditLogToFileConnPrefixesLen[] = {
   35,
   28,
   26,
-  28,
   39,
   40
+};
+
+static const char * pgAuditLogToFileDisconnPrefixes[] = {
+  "disconnection: session time:",
+};
+
+
+static const int pgAuditLogToFileDisconnPrefixesLen[] = {
+  28
 };
 
 /* Buffers for formatted timestamps */
@@ -342,8 +346,15 @@ static inline bool pgauditlogtofile_is_open_file(void) {
 static inline bool pgauditlogtofile_is_prefixed(const char *msg) {
   bool found = false;
   int i;
-  for (i = 0; !found && i < PGAUDITLOGTOFILE_NUM_PREFIXES; i++) {
-    found = pg_strncasecmp(msg, pgAuditLogToFilePrefixes[i], pgAuditLogToFilePrefixesLen[i]) == 0;
+  if (guc_pgaudit_log_connections) {
+    for (i = 0; !found && i < (sizeof(pgAuditLogToFileConnPrefixesLen)/sizeof(pgAuditLogToFileConnPrefixesLen[0])); i++) {
+      found = pg_strncasecmp(msg, pgAuditLogToFileConnPrefixes[i], pgAuditLogToFileConnPrefixesLen[i]) == 0;
+    }
+  }
+  if (guc_pgaudit_log_disconnections) {
+    for (i = 0; !found && i < (sizeof(pgAuditLogToFileDisconnPrefixesLen)/sizeof(pgAuditLogToFileDisconnPrefixesLen[0])); i++) {
+      found = pg_strncasecmp(msg, pgAuditLogToFileDisconnPrefixes[i], pgAuditLogToFileDisconnPrefixesLen[i]) == 0;
+    }
   }
   return found;
 }
