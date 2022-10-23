@@ -102,10 +102,16 @@ bool guc_pgaudit_log_disconnections = false;
 /* Old hook storage for loading/unloading of the extension */
 static emit_log_hook_type prev_emit_log_hook = NULL;
 static shmem_startup_hook_type prev_shmem_startup_hook = NULL;
+#if (PG_VERSION_NUM >= 150000)
+static shmem_request_hook_type prev_shmem_request_hook = NULL;
+#endif
 
 /* Hook functions */
 static void pgauditlogtofile_emit_log(ErrorData *edata);
 static void pgauditlogtofile_shmem_startup(void);
+#if (PG_VERSION_NUM >= 150000)
+static void pgauditlogtofile_shmem_request(void);
+#endif
 
 /* Internal functions */
 static void guc_assign_directory(const char *newval, void *extra);
@@ -213,8 +219,13 @@ void _PG_init(void) {
 
   EmitWarningsOnPlaceholders("pgauditlogtofile");
 
+#if (PG_VERSION_NUM >= 150000)
+	prev_shmem_request_hook = shmem_request_hook;
+	shmem_request_hook = pgauditlogtofile_shmem_request;
+#else
   RequestAddinShmemSpace(MAXALIGN(sizeof(pgAuditLogToFileShm)));
   RequestNamedLWLockTranche("pgauditlogtofile", 1);
+#endif
 
   prev_shmem_startup_hook = shmem_startup_hook;
   shmem_startup_hook = pgauditlogtofile_shmem_startup;
@@ -229,6 +240,16 @@ void _PG_fini(void) {
   emit_log_hook = prev_emit_log_hook;
   shmem_startup_hook = prev_shmem_startup_hook;
 }
+
+#if (PG_VERSION_NUM >= 150000)
+static void pgauditlogtofile_shmem_request(void) {
+  if (prev_shmem_request_hook)
+		prev_shmem_request_hook();
+
+  RequestAddinShmemSpace(MAXALIGN(sizeof(pgAuditLogToFileShm)));
+  RequestNamedLWLockTranche("pgauditlogtofile", 1);
+}
+#endif
 
 /*
  * SHMEM startup hook - Initialize SHMEM structure
