@@ -268,7 +268,8 @@ static void pgauditlogtofile_shmem_startup(void) {
   if (!found) {
     pgaudit_log_shm->lock = &(GetNamedLWLockTranche("pgauditlogtofile"))->lock;
     pgaudit_log_shm->force_rotation = false;
-    pgauditlogtofile_calculate_next_rotation_time();
+    if (guc_pgaudit_log_rotation_age > 0)
+      pgauditlogtofile_calculate_next_rotation_time();
     pgauditlogtofile_calculate_filename();
   }
   LWLockRelease(AddinShmemInitLock);
@@ -394,7 +395,7 @@ static bool pgauditlogtofile_needs_rotate_file(void) {
 
   /* Rotate if rotation_age is exceeded, and this backend is the first in notice
    * it */
-  if ((pg_time_t)time(NULL) >= next_rotation_time) {
+  if (guc_pgaudit_log_rotation_age > 0 && (pg_time_t)time(NULL) >= next_rotation_time) {
     pgauditlogtofile_calculate_next_rotation_time();
     return true;
   }
@@ -477,9 +478,15 @@ static bool pgauditlogtofile_open_file(void) {
  */
 static void pgauditlogtofile_calculate_filename(void) {
   int len;
-  pg_time_t current_rotation_time =
-      next_rotation_time -
-      guc_pgaudit_log_rotation_age * SECS_PER_MINUTE;
+  pg_time_t current_rotation_time;
+  if (guc_pgaudit_log_rotation_age > 0) {
+    current_rotation_time =
+         next_rotation_time -
+         guc_pgaudit_log_rotation_age * SECS_PER_MINUTE;
+  } else {
+    current_rotation_time = (pg_time_t)time(NULL);
+  }
+
 
   memset(filename, 0, sizeof(filename));
   snprintf(filename, MAXPGPATH, "%s/",
