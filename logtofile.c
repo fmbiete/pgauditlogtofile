@@ -47,29 +47,39 @@
 #define LBF_MODE _IOLBF
 #endif
 
-static const char * pgAuditLogToFileConnPrefixes[] = {
-  "connection authenticated: identity=",
-  "connection authorized: user=",
-  "connection received: host=",
-  "password authentication failed for user",
-  "replication connection authorized: user="
+
+/* Extracted from src/backend/po */
+static const char * postgresConnMsg[] = {
+  "connection received: host=%s port=%s",
+  "connection received: host=%s",
+  "connection authorized: user=%s",
+  "connection authenticated: identity=\"%s\" method=%s (%s:%d)",
+  "replication connection authorized: user=%s",
+  "replication connection authorized: user=%s SSL enabled (protocol=%s, cipher=%s, bits=%d, compression=%s)",
+  "replication connection authorized: user=%s application_name=%s",
+  "replication connection authorized: user=%s application_name=%s SSL enabled (protocol=%s, cipher=%s, bits=%d, compression=%s)",
+  "password authentication failed for user \"%s\"",
+  "authentication failed for user \"%s\": host rejected",
+  "\"trust\" authentication failed for user \"%s\"",
+  "Ident authentication failed for user \"%s\"",
+  "Peer authentication failed for user \"%s\"",
+  "password authentication failed for user \"%s\"",
+  "SSPI authentication failed for user \"%s\"",
+  "PAM authentication failed for user \"%s\"",
+  "BSD authentication failed for user \"%s\"",
+  "LDAP authentication failed for user \"%s\"",
+  "certificate authentication failed for user \"%s\"",
+  "RADIUS authentication failed for user \"%s\"",
+  "authentication failed for user \"%s\": invalid authentication method",
+  "connection authorized: user=%s database=%s",
+  "connection authorized: user=%s database=%s SSL enabled (protocol=%s, cipher=%s, bits=%d, compression=%s)",
+  "connection authorized: user=%s database=%s application_name=%s",
+  "connection authorized: user=%s database=%s application_name=%s SSL enabled (protocol=%s, cipher=%s, bits=%d, compression=%s)",
 };
 
-static const int pgAuditLogToFileConnPrefixesLen[] = {
-  35,
-  28,
-  26,
-  39,
-  40
-};
-
-static const char * pgAuditLogToFileDisconnPrefixes[] = {
-  "disconnection: session time:",
-};
-
-
-static const int pgAuditLogToFileDisconnPrefixesLen[] = {
-  28
+/* Extracted from src/backend/po */
+static const char * postgresDisconnMsg[] = {
+  "disconnection: session time: %d:%02d:%02d.%03d user=%s database=%s host=%s%s%s"
 };
 
 /* Buffers for formatted timestamps */
@@ -77,10 +87,18 @@ static char formatted_start_time[FORMATTED_TS_LEN];
 static char formatted_log_time[FORMATTED_TS_LEN];
 
 /* SHM structure */
+typedef struct pgAuditLogToFilePrefix {
+  char *prefix;
+  int length;
+} pgAuditLogToFilePrefix;
+
 typedef struct pgAuditLogToFileShm {
   LWLock *lock;
-
   bool force_rotation;
+  pgAuditLogToFilePrefix **prefixes_connection;
+  size_t num_prefixes_connection;
+  pgAuditLogToFilePrefix **prefixes_disconnection;
+  size_t num_prefixes_disconnection;
 } pgAuditLogToFileShm;
 
 static pgAuditLogToFileShm *pgaudit_log_shm = NULL;
@@ -114,6 +132,8 @@ static void pgauditlogtofile_shmem_request(void);
 #endif
 
 /* Internal functions */
+static char ** pgauditlogtofile_unique_prefixes(const char **messages, const size_t num_messages, size_t *num_unique);
+
 static void guc_assign_directory(const char *newval, void *extra);
 static void guc_assign_filename(const char *newval, void *extra);
 static bool guc_check_directory(char **newval, void **extra, GucSource source);
@@ -256,6 +276,8 @@ static void pgauditlogtofile_shmem_request(void) {
  */
 static void pgauditlogtofile_shmem_startup(void) {
   bool found;
+  size_t num_messages;
+  char **prefixes;
 
   if (prev_shmem_startup_hook)
     prev_shmem_startup_hook();
@@ -266,6 +288,37 @@ static void pgauditlogtofile_shmem_startup(void) {
   LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
   pgaudit_log_shm = ShmemInitStruct("pgauditlogtofile", sizeof(pgAuditLogToFileShm), &found);
   if (!found) {
+    // Get unique prefixes and copy them to SHMEM
+    num_messages = sizeof(postgresConnMsg) / sizeof(char *);
+    prefixes = pgauditlogtofile_unique_prefixes(postgresConnMsg, num_messages, &pgaudit_log_shm->num_prefixes_connection);
+    pgaudit_log_shm->prefixes_connection = ShmemAlloc(pgaudit_log_shm->num_prefixes_connection * sizeof(pgAuditLogToFilePrefix *));
+    for (size_t i = 0, j = 0; i < num_messages; i++) {
+      if (prefixes[i] != NULL) {
+        pgaudit_log_shm->prefixes_connection[j] = ShmemAlloc(sizeof(pgAuditLogToFilePrefix));
+        pgaudit_log_shm->prefixes_connection[j]->length = strlen(prefixes[i]);
+        pgaudit_log_shm->prefixes_connection[j]->prefix = ShmemAlloc( (pgaudit_log_shm->prefixes_connection[j]->length + 1) * sizeof(char) );
+        strcpy(pgaudit_log_shm->prefixes_connection[j]->prefix, prefixes[i]);
+        free(prefixes[i]);
+        j++;
+      }
+    }
+    free(prefixes);
+
+    num_messages = sizeof(postgresDisconnMsg) / sizeof(char *);
+    prefixes = pgauditlogtofile_unique_prefixes(postgresDisconnMsg, num_messages, &pgaudit_log_shm->num_prefixes_disconnection);
+    pgaudit_log_shm->prefixes_disconnection = ShmemAlloc(pgaudit_log_shm->num_prefixes_disconnection * sizeof(pgAuditLogToFilePrefix *));
+    for (size_t i = 0, j = 0; i < num_messages; i++) {
+      if (prefixes[i] != NULL) {
+        pgaudit_log_shm->prefixes_disconnection[j] = ShmemAlloc(sizeof(pgAuditLogToFilePrefix));
+        pgaudit_log_shm->prefixes_disconnection[j]->length = strlen(prefixes[i]);
+        pgaudit_log_shm->prefixes_disconnection[j]->prefix = ShmemAlloc( (pgaudit_log_shm->prefixes_disconnection[j]->length + 1) * sizeof(char) );
+        strcpy(pgaudit_log_shm->prefixes_disconnection[j]->prefix, prefixes[i]);
+        free(prefixes[i]);
+        j++;
+      }
+    }
+    free(prefixes);
+
     pgaudit_log_shm->lock = &(GetNamedLWLockTranche("pgauditlogtofile"))->lock;
     pgaudit_log_shm->force_rotation = false;
     if (guc_pgaudit_log_rotation_age > 0)
@@ -277,6 +330,52 @@ static void pgauditlogtofile_shmem_startup(void) {
   if (!found) {
     ereport(LOG, (errmsg("pgauditlogtofile extension initialized")));
   }
+}
+
+static char ** pgauditlogtofile_unique_prefixes(const char **messages, const size_t num_messages, size_t *num_unique) {
+  bool is_unique;
+  char **prefixes;
+  char *message, *prefix, *dup;
+
+  *num_unique = 0;
+
+  prefixes = malloc(num_messages * sizeof(char *));
+
+  for (size_t i = 0; i < num_messages; i++) {
+#ifdef ENABLE_NLS
+    // Get translation - static copy
+    message = gettext(messages[i]);
+#else
+    // Pointer to original = static copy
+    message = messages[i];
+#endif
+    // Get a copy that we can modify
+    dup = strdup(message);
+    prefix = strtok(dup, "%");
+    if (prefix != NULL) {
+      // Search duplicated
+      is_unique = true;
+      for (size_t j = 0; j < i; j++) {
+        if (prefixes[j] != NULL) {
+          if (strcmp(prefixes[j], prefix) == 0) {
+            // Skip - prefix already present
+            is_unique = false;
+          }
+        }
+      }
+
+      if (is_unique) {
+        prefixes[i] = malloc((strlen(prefix) + 1) * sizeof(char));
+        strcpy(prefixes[i], prefix);
+        *num_unique += 1;
+      } else {
+        prefixes[i] = NULL;
+      }
+    }
+    free(dup);
+  }
+
+  return prefixes;
 }
 
 /*
@@ -367,15 +466,14 @@ static inline bool pgauditlogtofile_is_open_file(void) {
  */
 static inline bool pgauditlogtofile_is_prefixed(const char *msg) {
   bool found = false;
-  int i;
   if (guc_pgaudit_log_connections) {
-    for (i = 0; !found && i < (sizeof(pgAuditLogToFileConnPrefixesLen)/sizeof(pgAuditLogToFileConnPrefixesLen[0])); i++) {
-      found = pg_strncasecmp(msg, pgAuditLogToFileConnPrefixes[i], pgAuditLogToFileConnPrefixesLen[i]) == 0;
+    for (size_t i = 0; !found && i < pgaudit_log_shm->num_prefixes_connection; i++) {
+      found = pg_strncasecmp(msg, pgaudit_log_shm->prefixes_connection[i]->prefix, pgaudit_log_shm->prefixes_connection[i]->length) == 0;
     }
   }
-  if (guc_pgaudit_log_disconnections) {
-    for (i = 0; !found && i < (sizeof(pgAuditLogToFileDisconnPrefixesLen)/sizeof(pgAuditLogToFileDisconnPrefixesLen[0])); i++) {
-      found = pg_strncasecmp(msg, pgAuditLogToFileDisconnPrefixes[i], pgAuditLogToFileDisconnPrefixesLen[i]) == 0;
+  if (!found && guc_pgaudit_log_disconnections) {
+    for (size_t i = 0; !found && i < pgaudit_log_shm->num_prefixes_disconnection; i++) {
+      found = pg_strncasecmp(msg, pgaudit_log_shm->prefixes_disconnection[i]->prefix, pgaudit_log_shm->prefixes_disconnection[i]->length) == 0;
     }
   }
   return found;
