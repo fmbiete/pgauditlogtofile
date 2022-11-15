@@ -276,7 +276,7 @@ static void pgauditlogtofile_shmem_request(void) {
  */
 static void pgauditlogtofile_shmem_startup(void) {
   bool found;
-  size_t num_messages;
+  size_t num_messages, i, j;
   char **prefixes;
 
   if (prev_shmem_startup_hook)
@@ -292,7 +292,7 @@ static void pgauditlogtofile_shmem_startup(void) {
     num_messages = sizeof(postgresConnMsg) / sizeof(char *);
     prefixes = pgauditlogtofile_unique_prefixes(postgresConnMsg, num_messages, &pgaudit_log_shm->num_prefixes_connection);
     pgaudit_log_shm->prefixes_connection = ShmemAlloc(pgaudit_log_shm->num_prefixes_connection * sizeof(pgAuditLogToFilePrefix *));
-    for (size_t i = 0, j = 0; i < num_messages; i++) {
+    for (i = 0, j = 0; i < num_messages; i++) {
       if (prefixes[i] != NULL) {
         pgaudit_log_shm->prefixes_connection[j] = ShmemAlloc(sizeof(pgAuditLogToFilePrefix));
         pgaudit_log_shm->prefixes_connection[j]->length = strlen(prefixes[i]);
@@ -307,7 +307,7 @@ static void pgauditlogtofile_shmem_startup(void) {
     num_messages = sizeof(postgresDisconnMsg) / sizeof(char *);
     prefixes = pgauditlogtofile_unique_prefixes(postgresDisconnMsg, num_messages, &pgaudit_log_shm->num_prefixes_disconnection);
     pgaudit_log_shm->prefixes_disconnection = ShmemAlloc(pgaudit_log_shm->num_prefixes_disconnection * sizeof(pgAuditLogToFilePrefix *));
-    for (size_t i = 0, j = 0; i < num_messages; i++) {
+    for (i = 0, j = 0; i < num_messages; i++) {
       if (prefixes[i] != NULL) {
         pgaudit_log_shm->prefixes_disconnection[j] = ShmemAlloc(sizeof(pgAuditLogToFilePrefix));
         pgaudit_log_shm->prefixes_disconnection[j]->length = strlen(prefixes[i]);
@@ -336,12 +336,13 @@ static char ** pgauditlogtofile_unique_prefixes(const char **messages, const siz
   bool is_unique;
   char **prefixes;
   char *message, *prefix, *dup;
+  size_t i, j;
 
   *num_unique = 0;
 
   prefixes = malloc(num_messages * sizeof(char *));
 
-  for (size_t i = 0; i < num_messages; i++) {
+  for (i = 0; i < num_messages; i++) {
 #ifdef ENABLE_NLS
     // Get translation - static copy
     message = gettext(messages[i]);
@@ -355,7 +356,7 @@ static char ** pgauditlogtofile_unique_prefixes(const char **messages, const siz
     if (prefix != NULL) {
       // Search duplicated
       is_unique = true;
-      for (size_t j = 0; j < i; j++) {
+      for (j = 0; j < i; j++) {
         if (prefixes[j] != NULL) {
           if (strcmp(prefixes[j], prefix) == 0) {
             // Skip - prefix already present
@@ -466,16 +467,20 @@ static inline bool pgauditlogtofile_is_open_file(void) {
  */
 static inline bool pgauditlogtofile_is_prefixed(const char *msg) {
   bool found = false;
+  size_t i;
+	
   if (guc_pgaudit_log_connections) {
-    for (size_t i = 0; !found && i < pgaudit_log_shm->num_prefixes_connection; i++) {
+    for (i = 0; !found && i < pgaudit_log_shm->num_prefixes_connection; i++) {
       found = pg_strncasecmp(msg, pgaudit_log_shm->prefixes_connection[i]->prefix, pgaudit_log_shm->prefixes_connection[i]->length) == 0;
     }
   }
+	
   if (!found && guc_pgaudit_log_disconnections) {
-    for (size_t i = 0; !found && i < pgaudit_log_shm->num_prefixes_disconnection; i++) {
+    for (i = 0; !found && i < pgaudit_log_shm->num_prefixes_disconnection; i++) {
       found = pg_strncasecmp(msg, pgaudit_log_shm->prefixes_disconnection[i]->prefix, pgaudit_log_shm->prefixes_disconnection[i]->length) == 0;
     }
   }
+	
   return found;
 }
 
