@@ -102,6 +102,7 @@ typedef struct pgAuditLogToFileShm {
 } pgAuditLogToFileShm;
 
 static pgAuditLogToFileShm *pgaudit_log_shm = NULL;
+static bool pgAuditLogToFileShutdown = false;
 
 /* Audit log file handler */
 static FILE *file_handler = NULL;
@@ -152,6 +153,7 @@ static bool pgauditlogtofile_is_prefixed(const char *msg);
 static bool pgauditlogtofile_needs_rotate_file(void);
 static bool pgauditlogtofile_open_file(void);
 static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars);
+static void pgauditlogtofile_shmem_shutdown(int code, Datum arg);
 static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars);
 
 
@@ -327,6 +329,9 @@ static void pgauditlogtofile_shmem_startup(void) {
   }
   LWLockRelease(AddinShmemInitLock);
 
+  if (!IsUnderPostmaster)
+    on_shmem_exit(pgauditlogtofile_shmem_shutdown, (Datum) 0);
+
   if (!found) {
     ereport(LOG, (errmsg("pgauditlogtofile extension initialized")));
   }
@@ -413,10 +418,9 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
  * Checks if pgauditlogtofile is completely started and configured
  */
 static inline bool pgauditlogtofile_is_enabled(void) {
-  if (!pgaudit_log_shm || guc_pgaudit_log_directory == NULL ||
-      guc_pgaudit_log_filename == NULL ||
-      strlen(guc_pgaudit_log_directory) == 0 ||
-      strlen(guc_pgaudit_log_filename) == 0)
+  if (pgAuditLogToFileShutdown || !pgaudit_log_shm ||
+      guc_pgaudit_log_directory == NULL || guc_pgaudit_log_filename == NULL ||
+      strlen(guc_pgaudit_log_directory) == 0 || strlen(guc_pgaudit_log_filename) == 0)
     return false;
 
   return true;
@@ -468,19 +472,19 @@ static inline bool pgauditlogtofile_is_open_file(void) {
 static inline bool pgauditlogtofile_is_prefixed(const char *msg) {
   bool found = false;
   size_t i;
-	
+
   if (guc_pgaudit_log_connections) {
     for (i = 0; !found && i < pgaudit_log_shm->num_prefixes_connection; i++) {
       found = pg_strncasecmp(msg, pgaudit_log_shm->prefixes_connection[i]->prefix, pgaudit_log_shm->prefixes_connection[i]->length) == 0;
     }
   }
-	
+
   if (!found && guc_pgaudit_log_disconnections) {
     for (i = 0; !found && i < pgaudit_log_shm->num_prefixes_disconnection; i++) {
       found = pg_strncasecmp(msg, pgaudit_log_shm->prefixes_disconnection[i]->prefix, pgaudit_log_shm->prefixes_disconnection[i]->length) == 0;
     }
   }
-	
+
   return found;
 }
 
@@ -825,4 +829,11 @@ static inline void pgauditlogtofile_format_log_time(void) {
   /* 'paste' milliseconds into place... */
   sprintf(msbuf, ".%03d", (int)(tv.tv_usec / 1000));
   memcpy(formatted_log_time + 19, msbuf, 4);
+}
+
+/*
+ * Identify when we are doing a shutdown
+ */
+static void pgauditlogtofile_shmem_shutdown(int code, Datum arg) {
+  pgAuditLogToFileShutdown = true;
 }
