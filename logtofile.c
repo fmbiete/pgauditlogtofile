@@ -493,7 +493,7 @@ static inline bool pgauditlogtofile_is_prefixed(const char *msg) {
  */
 static bool pgauditlogtofile_needs_rotate_file(void) {
   /* Rotate if we are forcing */
-  if (pgaudit_log_shm->force_rotation) {
+  if (pgaudit_log_shm->force_rotation && MyProc != NULL) {
     LWLockAcquire(pgaudit_log_shm->lock, LW_EXCLUSIVE);
     pgaudit_log_shm->force_rotation = false;
     LWLockRelease(pgaudit_log_shm->lock);
