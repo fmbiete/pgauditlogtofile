@@ -158,10 +158,10 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
 
 
 static void pgauditlogtofile_request_rotation(void) {
-  /* Directory is changed force a rotation */
   if (UsedShmemSegAddr == NULL)
   	return;
 
+  /* Directory is changed force a rotation */
   if (!pgaudit_log_shm->force_rotation) {
     LWLockAcquire(pgaudit_log_shm->lock, LW_EXCLUSIVE);
     pgaudit_log_shm->force_rotation = true;
@@ -279,7 +279,7 @@ static void pgauditlogtofile_shmem_request(void) {
 static void pgauditlogtofile_shmem_startup(void) {
   bool found;
   size_t num_messages, i, j;
-  char **prefixes;
+  char **prefixes = NULL;
 
   if (prev_shmem_startup_hook)
     prev_shmem_startup_hook();
@@ -295,7 +295,7 @@ static void pgauditlogtofile_shmem_startup(void) {
     prefixes = pgauditlogtofile_unique_prefixes(postgresConnMsg, num_messages, &pgaudit_log_shm->num_prefixes_connection);
     pgaudit_log_shm->prefixes_connection = ShmemAlloc(pgaudit_log_shm->num_prefixes_connection * sizeof(pgAuditLogToFilePrefix *));
     for (i = 0, j = 0; i < num_messages; i++) {
-      if (prefixes[i] != NULL) {
+      if (prefixes != NULL && prefixes[i] != NULL) {
         pgaudit_log_shm->prefixes_connection[j] = ShmemAlloc(sizeof(pgAuditLogToFilePrefix));
         pgaudit_log_shm->prefixes_connection[j]->length = strlen(prefixes[i]);
         pgaudit_log_shm->prefixes_connection[j]->prefix = ShmemAlloc( (pgaudit_log_shm->prefixes_connection[j]->length + 1) * sizeof(char) );
@@ -310,7 +310,7 @@ static void pgauditlogtofile_shmem_startup(void) {
     prefixes = pgauditlogtofile_unique_prefixes(postgresDisconnMsg, num_messages, &pgaudit_log_shm->num_prefixes_disconnection);
     pgaudit_log_shm->prefixes_disconnection = ShmemAlloc(pgaudit_log_shm->num_prefixes_disconnection * sizeof(pgAuditLogToFilePrefix *));
     for (i = 0, j = 0; i < num_messages; i++) {
-      if (prefixes[i] != NULL) {
+      if (prefixes != NULL && prefixes[i] != NULL) {
         pgaudit_log_shm->prefixes_disconnection[j] = ShmemAlloc(sizeof(pgAuditLogToFilePrefix));
         pgaudit_log_shm->prefixes_disconnection[j]->length = strlen(prefixes[i]);
         pgaudit_log_shm->prefixes_disconnection[j]->prefix = ShmemAlloc( (pgaudit_log_shm->prefixes_disconnection[j]->length + 1) * sizeof(char) );
@@ -339,46 +339,51 @@ static void pgauditlogtofile_shmem_startup(void) {
 
 static char ** pgauditlogtofile_unique_prefixes(const char **messages, const size_t num_messages, size_t *num_unique) {
   bool is_unique;
-  char **prefixes;
+  char **prefixes = NULL;
   char *message, *prefix, *dup;
   size_t i, j;
 
   *num_unique = 0;
 
   prefixes = malloc(num_messages * sizeof(char *));
+  if (prefixes != NULL) {
+    for (i = 0; i < num_messages; i++) {
+  #ifdef ENABLE_NLS
+      // Get translation - static copy
+      message = gettext(messages[i]);
+  #else
+      // Pointer to original = static copy
+      message = messages[i];
+  #endif
+      // Get a copy that we can modify
+      dup = strdup(message);
+      if (dup != NULL) {
+        prefix = strtok(dup, "%");
+        if (prefix != NULL) {
+          // Search duplicated
+          is_unique = true;
+          for (j = 0; j < i; j++) {
+            if (prefixes[j] != NULL) {
+              if (strcmp(prefixes[j], prefix) == 0) {
+                // Skip - prefix already present
+                is_unique = false;
+              }
+            }
+          }
 
-  for (i = 0; i < num_messages; i++) {
-#ifdef ENABLE_NLS
-    // Get translation - static copy
-    message = gettext(messages[i]);
-#else
-    // Pointer to original = static copy
-    message = messages[i];
-#endif
-    // Get a copy that we can modify
-    dup = strdup(message);
-    prefix = strtok(dup, "%");
-    if (prefix != NULL) {
-      // Search duplicated
-      is_unique = true;
-      for (j = 0; j < i; j++) {
-        if (prefixes[j] != NULL) {
-          if (strcmp(prefixes[j], prefix) == 0) {
-            // Skip - prefix already present
-            is_unique = false;
+          if (is_unique) {
+            prefixes[i] = malloc((strlen(prefix) + 1) * sizeof(char));
+            if (prefixes[i] != NULL) {
+              strcpy(prefixes[i], prefix);
+              *num_unique += 1;
+            }
+          } else {
+            prefixes[i] = NULL;
           }
         }
-      }
-
-      if (is_unique) {
-        prefixes[i] = malloc((strlen(prefix) + 1) * sizeof(char));
-        strcpy(prefixes[i], prefix);
-        *num_unique += 1;
-      } else {
-        prefixes[i] = NULL;
+        free(dup);
       }
     }
-    free(dup);
   }
 
   return prefixes;
@@ -418,6 +423,9 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
  * Checks if pgauditlogtofile is completely started and configured
  */
 static inline bool pgauditlogtofile_is_enabled(void) {
+  if (UsedShmemSegAddr == NULL)
+    return false;
+
   if (pgAuditLogToFileShutdown || !pgaudit_log_shm ||
       guc_pgaudit_log_directory == NULL || guc_pgaudit_log_filename == NULL ||
       strlen(guc_pgaudit_log_directory) == 0 || strlen(guc_pgaudit_log_filename) == 0)
@@ -581,7 +589,7 @@ static bool pgauditlogtofile_open_file(void) {
 }
 
 /*
- * Generates the name fo the audit log file
+ * Generates the name for the audit log file
  */
 static void pgauditlogtofile_calculate_filename(void) {
   int len;
