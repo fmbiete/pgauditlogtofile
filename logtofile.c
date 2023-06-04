@@ -395,6 +395,7 @@ static char ** pgauditlogtofile_unique_prefixes(const char **messages, const siz
  */
 static void pgauditlogtofile_emit_log(ErrorData *edata) {
   int exclude_nchars = -1;
+  bool close_file = false;
 
   if (pgauditlogtofile_is_enabled()) {
     // printf("ENABLE PRINTF\n");
@@ -405,12 +406,20 @@ static void pgauditlogtofile_emit_log(ErrorData *edata) {
     else if (pgauditlogtofile_is_prefixed(edata->message)) {
       edata->output_to_server = false;
       exclude_nchars = 0;
+      // We want to close the file for connection messages, since we could not be logging anything anymore and keeping
+      // the file open
+      close_file = true;
     }
 
+    // Scenarios not contemplated above will be ignored
     if (exclude_nchars >= 0) {
       if (!pgauditlogtofile_record_audit(edata, exclude_nchars)) {
         // ERROR: failed to record in audit, record in server log
         edata->output_to_server = true;
+      }
+
+      if (close_file) {
+        pgauditlogtofile_close_file();
       }
     }
   }
