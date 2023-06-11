@@ -22,6 +22,7 @@
 #include "tcop/tcopprot.h"
 #include "utils/guc.h"
 #include "utils/memutils.h"
+#include "utils/palloc.h"
 #include "utils/ps_status.h"
 
 #include "logtofile.h"
@@ -300,11 +301,11 @@ static void pgauditlogtofile_shmem_startup(void) {
         pgaudit_log_shm->prefixes_connection[j]->length = strlen(prefixes[i]);
         pgaudit_log_shm->prefixes_connection[j]->prefix = ShmemAlloc( (pgaudit_log_shm->prefixes_connection[j]->length + 1) * sizeof(char) );
         strcpy(pgaudit_log_shm->prefixes_connection[j]->prefix, prefixes[i]);
-        free(prefixes[i]);
+        pfree(prefixes[i]);
         j++;
       }
     }
-    free(prefixes);
+    pfree(prefixes);
 
     num_messages = sizeof(postgresDisconnMsg) / sizeof(char *);
     prefixes = pgauditlogtofile_unique_prefixes(postgresDisconnMsg, num_messages, &pgaudit_log_shm->num_prefixes_disconnection);
@@ -315,11 +316,11 @@ static void pgauditlogtofile_shmem_startup(void) {
         pgaudit_log_shm->prefixes_disconnection[j]->length = strlen(prefixes[i]);
         pgaudit_log_shm->prefixes_disconnection[j]->prefix = ShmemAlloc( (pgaudit_log_shm->prefixes_disconnection[j]->length + 1) * sizeof(char) );
         strcpy(pgaudit_log_shm->prefixes_disconnection[j]->prefix, prefixes[i]);
-        free(prefixes[i]);
+        pfree(prefixes[i]);
         j++;
       }
     }
-    free(prefixes);
+    pfree(prefixes);
 
     pgaudit_log_shm->lock = &(GetNamedLWLockTranche("pgauditlogtofile"))->lock;
     pgaudit_log_shm->force_rotation = false;
@@ -345,7 +346,7 @@ static char ** pgauditlogtofile_unique_prefixes(const char **messages, const siz
 
   *num_unique = 0;
 
-  prefixes = malloc(num_messages * sizeof(char *));
+  prefixes = palloc(num_messages * sizeof(char *));
   if (prefixes != NULL) {
     for (i = 0; i < num_messages; i++) {
   #ifdef ENABLE_NLS
@@ -356,7 +357,7 @@ static char ** pgauditlogtofile_unique_prefixes(const char **messages, const siz
       message = messages[i];
   #endif
       // Get a copy that we can modify
-      dup = strdup(message);
+      dup = pstrdup(message);
       if (dup != NULL) {
         prefix = strtok(dup, "%");
         if (prefix != NULL) {
@@ -372,7 +373,7 @@ static char ** pgauditlogtofile_unique_prefixes(const char **messages, const siz
           }
 
           if (is_unique) {
-            prefixes[i] = malloc((strlen(prefix) + 1) * sizeof(char));
+            prefixes[i] = palloc((strlen(prefix) + 1) * sizeof(char));
             if (prefixes[i] != NULL) {
               strcpy(prefixes[i], prefix);
               *num_unique += 1;
@@ -381,7 +382,7 @@ static char ** pgauditlogtofile_unique_prefixes(const char **messages, const siz
             prefixes[i] = NULL;
           }
         }
-        free(dup);
+        pfree(dup);
       }
     }
   }
