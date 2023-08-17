@@ -159,8 +159,8 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
 
 
 static void pgauditlogtofile_request_rotation(void) {
-  if (UsedShmemSegAddr == NULL)
-  	return;
+  if (UsedShmemSegAddr == NULL || pgaudit_log_shm == NULL)
+    return;
 
   /* Directory is changed force a rotation */
   if (!pgaudit_log_shm->force_rotation) {
