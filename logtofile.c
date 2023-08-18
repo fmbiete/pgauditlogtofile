@@ -223,7 +223,7 @@ void _PG_init(void) {
   DefineCustomIntVariable(
     "pgaudit.log_rotation_age",
     "Automatic spool file rotation will occur after N minutes", NULL,
-    &guc_pgaudit_log_rotation_age, HOURS_PER_DAY * MINS_PER_HOUR, 0,
+    &guc_pgaudit_log_rotation_age, HOURS_PER_DAY * MINS_PER_HOUR, 1,
     INT_MAX / SECS_PER_MINUTE, PGC_SIGHUP,
     GUC_NOT_IN_SAMPLE | GUC_UNIT_MIN | GUC_SUPERUSER_ONLY, NULL,
     guc_assign_rotation_age, NULL);
