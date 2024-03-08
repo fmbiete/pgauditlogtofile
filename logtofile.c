@@ -341,7 +341,12 @@ static void pgauditlogtofile_shmem_startup(void) {
 static char ** pgauditlogtofile_unique_prefixes(const char **messages, const size_t num_messages, size_t *num_unique) {
   bool is_unique;
   char **prefixes = NULL;
-  char *message, *prefix, *dup;
+  char *prefix, *dup;
+#ifdef ENABLE_NLS
+  char *message;
+#else
+  const char *message;
+#endif
   size_t i, j;
 
   *num_unique = 0;
