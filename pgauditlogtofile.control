@@ -1,5 +1,5 @@
 # pgauditlogtofile extension
-comment = 'pgAudit addon to redirect audit log to an independent file'
-default_version = '1.5'
+comment = 'pgAudit addon to redirect audit entries to an independent file'
+default_version = '1.6'
 module_pathname = '$libdir/pgauditlogtofile'
 relocatable = true
