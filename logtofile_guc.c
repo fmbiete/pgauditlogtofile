@@ -1,3 +1,14 @@
+/*-------------------------------------------------------------------------
+ *
+ * logtofile_guc.c
+ *      GUC variables for logtofile
+ *
+ * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
+ *
+ * This code is released under the PostgreSQL licence, as given at
+ *  http://www.postgresql.org/about/licence/
+ *-------------------------------------------------------------------------
+ */
 #include "logtofile_guc.h"
 
 #include <datatype/timestamp.h>

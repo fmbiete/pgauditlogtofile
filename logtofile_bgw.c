@@ -1,3 +1,14 @@
+/*-------------------------------------------------------------------------
+ *
+ * logtofile_bgw.c
+ *      Background worker for logtofile
+ *
+ * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
+ *
+ * This code is released under the PostgreSQL licence, as given at
+ *  http://www.postgresql.org/about/licence/
+ *-------------------------------------------------------------------------
+ */
 #include "logtofile_bgw.h"
 
 #include "logtofile_shmem.h"

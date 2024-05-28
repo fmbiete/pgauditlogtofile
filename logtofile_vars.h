@@ -1,3 +1,14 @@
+/*-------------------------------------------------------------------------
+ *
+ * logtofile_vars.h
+ *      Global variables for logtofile
+ *
+ * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
+ *
+ * This code is released under the PostgreSQL licence, as given at
+ *  http://www.postgresql.org/about/licence/
+ *-------------------------------------------------------------------------
+ */
 #ifndef _LOGTOFILE_VARS_H_
 #define _LOGTOFILE_VARS_H_
 
