@@ -1,5 +1,8 @@
 # pgauditlogtofile/Makefile
-PG_CFLAGS = -fanalyzer -Wall -Wdiscarded-qualifiers
+# EL9
+#PG_CFLAGS = -fanalyzer -Wall -Wdiscarded-qualifiers
+# EL8
+PG_CFLAGS = -Wall -Wdiscarded-qualifiers
 
 MODULE_big = pgauditlogtofile
 OBJS = pgauditlogtofile.o logtofile.o logtofile_bgw.o logtofile_connect.o logtofile_guc.o logtofile_log.o logtofile_shmem.o logtofile_autoclose.o logtofile_vars.o
