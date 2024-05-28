@@ -60,6 +60,11 @@ const char *postgresDisconnMsg[] = {
 Timestamp pgauditlogtofile_truncate_timestamp(Timestamp t);
 
 #if (PG_VERSION_NUM >= 150000)
+/**
+ * @brief Request shared memory space
+ * @param void
+ * @return void
+*/
 void PgAuditLogToFile_shmem_request(void)
 {
   if (prev_shmem_request_hook)
@@ -70,8 +75,10 @@ void PgAuditLogToFile_shmem_request(void)
 }
 #endif
 
-/*
- * SHMEM startup hook - Initialize SHMEM structure
+/**
+ * @brief SHMEM startup hook - Initialize SHMEM structure
+ * @param void
+ * @return void
  */
 void PgAuditLogToFile_shmem_startup(void)
 {
@@ -148,16 +155,21 @@ void PgAuditLogToFile_shmem_startup(void)
     ereport(LOG, (errmsg("pgauditlogtofile extension initialized")));
 }
 
-/*
- * Identify when we are doing a shutdown
+/**
+ * @brief SHMEM shutdown hook
+ * @param code: code
+ * @param arg: arg
+ * @return void
  */
 void PgAuditLogToFile_shmem_shutdown(int code, Datum arg)
 {
   pg_atomic_test_set_flag(&pgaudit_ltf_flag_shutdown);
 }
 
-/*
- * Generates the name for the audit log file
+/**
+ * @brief Generates the name for the audit log file
+ * @param void
+ * @return void
  */
 void PgAuditLogToFile_calculate_filename(void)
 {
@@ -183,8 +195,10 @@ void PgAuditLogToFile_calculate_filename(void)
 }
 
 /*
- * Calculates next rotation time
- */
+ * @brief Calculates next rotation time
+ * @param void
+ * @return void
+*/
 void PgAuditLogToFile_calculate_next_rotation_time(void)
 {
   Timestamp next_rotation_time;
@@ -203,7 +217,9 @@ void PgAuditLogToFile_calculate_next_rotation_time(void)
 }
 
 /*
- * Checks if the audit log file needs to be rotated before we use it
+ * @brief Checks if the audit log file needs to be rotated before we use it
+ * @param void
+ * @return bool: true if the file needs to be rotated
  */
 bool PgAuditLogToFile_needs_rotate_file(void)
 {
@@ -220,6 +236,13 @@ bool PgAuditLogToFile_needs_rotate_file(void)
   return false;
 }
 
+/**
+ * @brief Truncate timestamp to the desired rotation unit
+ *   If we rotate every hour, truncate to the current hour
+ *   If we rotate every day, truncate to the current day
+ * @param t: timestamp
+ * @return Timestamp: truncated timestamp
+ */
 Timestamp
 pgauditlogtofile_truncate_timestamp(Timestamp t)
 {

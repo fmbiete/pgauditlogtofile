@@ -20,6 +20,11 @@
 #include <pthread.h>
 #include <unistd.h>
 
+/**
+ * @brief Main thread function to close the audit log file after a certain time
+ * @param arg: flag_thread - used to debug the thread status
+ * @return void
+*/
 void *PgAuditLogToFile_autoclose_run(void *arg)
 {
   int64 diff;

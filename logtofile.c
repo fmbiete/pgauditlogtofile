@@ -35,6 +35,11 @@
 #include <datatype/timestamp.h>
 #include <pgstat.h>
 
+/**
+ * @brief Main entry point for the extension
+ * @param void
+ * @return void
+*/
 void _PG_init(void)
 {
   BackgroundWorker worker;
@@ -115,6 +120,11 @@ void _PG_init(void)
   emit_log_hook = PgAuditLogToFile_emit_log;
 }
 
+/**
+ * @brief Extension finalization
+ * @param void
+ * @return void
+*/
 void _PG_fini(void)
 {
   emit_log_hook = prev_emit_log_hook;

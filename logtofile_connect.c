@@ -11,6 +11,13 @@
  */
 #include "logtofile_connect.h"
 
+/**
+ * @brief From a list of messages, optionally translated, get the unique prefixes
+ * @param messages: list of messages
+ * @param num_messages: number of messages
+ * @param num_unique: number of unique prefixes
+ * @return char **: list of unique prefixes
+ */
 char **
 PgAuditLogToFile_connect_UniquePrefixes(const char **messages, const size_t num_messages, size_t *num_unique)
 {

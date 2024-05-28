@@ -43,6 +43,11 @@ static volatile sig_atomic_t got_sigterm = false;
 static void pgauditlogtofile_sighup(SIGNAL_ARGS);
 static void pgauditlogtofile_sigterm(SIGNAL_ARGS);
 
+/**
+ * @brief Main entry point for the background worker
+ * @param arg: unused
+ * @return void
+*/
 void PgAuditLogToFileMain(Datum arg)
 {
   int sleep_ms = SECS_PER_MINUTE * 1000;
@@ -115,8 +120,14 @@ void PgAuditLogToFileMain(Datum arg)
   proc_exit(0);
 }
 
+
 /* private functions */
 
+/**
+ * @brief Signal handler for SIGHUP
+ * @param signal_arg: signal number
+ * @return void
+*/
 static void
 pgauditlogtofile_sigterm(SIGNAL_ARGS)
 {
@@ -127,6 +138,11 @@ pgauditlogtofile_sigterm(SIGNAL_ARGS)
   }
 }
 
+/**
+ * @brief Signal handler for SIGTERM
+ * @param signal_arg: signal number
+ * @return void
+*/
 static void
 pgauditlogtofile_sighup(SIGNAL_ARGS)
 {

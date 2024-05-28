@@ -17,8 +17,12 @@
 #include "logtofile_shmem.h"
 #include "logtofile_vars.h"
 
-/*
- * GUC Callback pgaudit.log_directory check path
+/**
+ * @brief GUC Callback pgaudit.log_directory check path
+ * @param newval: new value
+ * @param extra: extra
+ * @param source: source
+ * @return bool: true if path is valid
  */
 bool guc_check_directory(char **newval, void **extra, GucSource source)
 {

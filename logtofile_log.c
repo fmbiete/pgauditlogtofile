@@ -71,9 +71,10 @@ bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars);
 
 /* public methods */
 
-/*
- * Hook to emit_log - write the record to the audit or send it to the default
- * logger
+/**
+ * @brief Hook to emit_log - write the record to the audit or send it to the default logger
+ * @param edata: error data
+ * @return void
  */
 void PgAuditLogToFile_emit_log(ErrorData *edata)
 {
@@ -108,8 +109,10 @@ void PgAuditLogToFile_emit_log(ErrorData *edata)
     prev_emit_log_hook(edata);
 }
 
-/*
- * Checks if pgauditlogtofile is completely started and configured
+/**
+ * @brief Checks if pgauditlogtofile is completely started and configured
+ * @param void
+ * @return bool - true if pgauditlogtofile is enabled
  */
 bool pgauditlogtofile_is_enabled(void)
 {
@@ -124,8 +127,11 @@ bool pgauditlogtofile_is_enabled(void)
   return true;
 }
 
-/*
- * Records an audit log
+/**
+ * @brief Records an audit log
+ * @param edata: error data
+ * @param exclude_nchars: number of characters to exclude from the message
+ * @return bool - true if the record was written
  */
 bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
 {
@@ -167,8 +173,10 @@ bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
   return rc;
 }
 
-/*
- * Close audit log file
+/**
+ * @brief Close the audit log file
+ * @param void
+ * @return void
  */
 void pgauditlogtofile_close_file(void)
 {
@@ -179,8 +187,10 @@ void pgauditlogtofile_close_file(void)
   }
 }
 
-/*
- * Checks if the audit log file is open
+/**
+ * @brief Checks if the audit log file is open
+ * @param void
+ * @return bool - true if the file is open
  */
 bool pgauditlogtofile_is_open_file(void)
 {
@@ -190,8 +200,10 @@ bool pgauditlogtofile_is_open_file(void)
     return false;
 }
 
-/*
- * Checks if a message starts with one of our intercept prefixes
+/**
+ * @brief Checks if a message starts with one of our intercept prefixes
+ * @param msg: message
+ * @return bool - true if the message starts with a prefix
  */
 bool pgauditlogtofile_is_prefixed(const char *msg)
 {
@@ -217,8 +229,10 @@ bool pgauditlogtofile_is_prefixed(const char *msg)
   return found;
 }
 
-/*
- * Open audit log
+/**
+ * @brief Open the audit log file
+ * @param void
+ * @return bool - true if the file was opened
  */
 bool pgauditlogtofile_open_file(void)
 {
@@ -232,7 +246,6 @@ bool pgauditlogtofile_open_file(void)
    * Note we do not let Log_file_mode disable IWUSR, since we certainly want
    * to be able to write the files ourselves.
    */
-
   oumask = umask(
       (mode_t)((~(Log_file_mode | S_IWUSR)) & (S_IRWXU | S_IRWXG | S_IRWXO)));
   pgaudit_ltf_file_handler = fopen(pgaudit_ltf_shm->filename, "a");
@@ -262,8 +275,10 @@ bool pgauditlogtofile_open_file(void)
   return opened;
 }
 
-/*
- * Writes an audit record in the audit log file
+/**
+ * @brief Writes an audit record in the audit log file
+ * @param edata: error data
+ * @param exclude_nchars: number of characters to exclude from the message
  */
 bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
 {
@@ -299,8 +314,12 @@ bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
   return rc == buf.len;
 }
 
-/*
- * Formats an audit log line
+/**
+ * @brief Formats an audit log line
+ * @param buf: buffer to write the formatted line
+ * @param edata: error data
+ * @param exclude_nchars: number of characters to exclude from the message
+ * @return void
  */
 void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, int exclude_nchars)
 {
@@ -466,8 +485,10 @@ void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, 
   appendStringInfoCharMacro(buf, '\n');
 }
 
-/*
- * Formats the session start time
+/**
+ * @brief Formats the session start time
+ * @param void
+ * @return void
  */
 void pgauditlogtofile_format_start_time(void)
 {
@@ -480,8 +501,10 @@ void pgauditlogtofile_format_start_time(void)
               pg_localtime((pg_time_t *)&MyStartTime, log_timezone));
 }
 
-/*
- * Formats the record time
+/**
+ * @brief Formats the record time
+ * @param void
+ * @return void
  */
 void pgauditlogtofile_format_log_time(void)
 {
