@@ -174,23 +174,18 @@ void PgAuditLogToFile_shmem_shutdown(int code, Datum arg)
 void PgAuditLogToFile_calculate_filename(void)
 {
   int len;
-  struct pg_tm tm;
-  fsec_t fsec;
+  pg_time_t timet;
 
   if (UsedShmemSegAddr == NULL || pgaudit_ltf_shm == NULL)
     return;
 
-  if (timestamp2tm(pgauditlogtofile_truncate_timestamp(GetCurrentTimestamp()), NULL, &tm, &fsec, NULL, NULL) != 0)
-  {
-    ereport(WARNING, errmsg("pgauditlogtofile failed calculate_filename - conversion to tm"));
-    return;
-  }
+  timet = timestamptz_to_time_t(pgauditlogtofile_truncate_timestamp(GetCurrentTimestamp()));
 
   LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
   memset(pgaudit_ltf_shm->filename, 0, sizeof(pgaudit_ltf_shm->filename));
   snprintf(pgaudit_ltf_shm->filename, MAXPGPATH, "%s/", guc_pgaudit_ltf_log_directory);
   len = strlen(pgaudit_ltf_shm->filename);
-  pg_strftime(pgaudit_ltf_shm->filename + len, MAXPGPATH - len, guc_pgaudit_ltf_log_filename, &tm);
+  pg_strftime(pgaudit_ltf_shm->filename + len, MAXPGPATH - len, guc_pgaudit_ltf_log_filename, pg_localtime(&timet, log_timezone));
   LWLockRelease(pgaudit_ltf_shm->lock);
 }
 
