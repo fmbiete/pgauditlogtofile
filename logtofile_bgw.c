@@ -26,12 +26,13 @@
 #include <storage/shmem.h>
 #if (PG_VERSION_NUM >= 140000)
 #include <utils/backend_status.h>
+#include <utils/wait_event.h>
 #else
 #include <pgstat.h>
 #endif
+#include <utils/guc.h>
 #include <utils/memutils.h>
 #include <utils/timestamp.h>
-#include <utils/guc.h>
 
 /* global settings */
 static bool PgAuditLogToFileReloadConfig = false;

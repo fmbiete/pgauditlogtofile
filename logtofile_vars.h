@@ -14,6 +14,7 @@
 
 #include <postgres.h>
 #include <datatype/timestamp.h>
+#include <miscadmin.h>
 #include <pgtime.h>
 #include <port/atomics.h>
 #include <storage/ipc.h>
