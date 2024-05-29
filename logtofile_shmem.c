@@ -20,6 +20,7 @@
 
 #include "logtofile_autoclose.h"
 #include "logtofile_connect.h"
+#include "logtofile_filename.h"
 #include "logtofile_guc.h"
 #include "logtofile_vars.h"
 
@@ -133,10 +134,9 @@ void PgAuditLogToFile_shmem_startup(void)
     }
     pfree(prefixes);
 
-    pgaudit_ltf_shm->lock = &(GetNamedLWLockTranche("pgauditlogtofile"))->lock;
-    if (guc_pgaudit_ltf_log_rotation_age > 0)
-      PgAuditLogToFile_calculate_next_rotation_time();
-    PgAuditLogToFile_calculate_filename();
+    pgaudit_ltf_shm->lock = &(GetNamedLWLockTranche("pgauditlogtofile"))->lock;    
+    PgAuditLogToFile_calculate_current_filename();
+    PgAuditLogToFile_set_next_rotation_time();
   }
   LWLockRelease(AddinShmemInitLock);
 
@@ -171,44 +171,26 @@ void PgAuditLogToFile_shmem_shutdown(int code, Datum arg)
  * @param void
  * @return void
  */
-void PgAuditLogToFile_calculate_filename(void)
+void PgAuditLogToFile_calculate_current_filename(void)
 {
-  int len;
-  pg_time_t timet;
+  char *filename = NULL;
 
   if (UsedShmemSegAddr == NULL || pgaudit_ltf_shm == NULL)
     return;
 
-  timet = timestamptz_to_time_t(pgauditlogtofile_truncate_timestamp(GetCurrentTimestamp()));
+  filename = PgAuditLogToFile_current_filename();
+  if (filename == NULL)
+  {
+    ereport(WARNING, (errmsg("pgauditlogtofile failed to calculate filename")));
+    return;
+  }
 
   LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
   memset(pgaudit_ltf_shm->filename, 0, sizeof(pgaudit_ltf_shm->filename));
-  snprintf(pgaudit_ltf_shm->filename, MAXPGPATH, "%s/", guc_pgaudit_ltf_log_directory);
-  len = strlen(pgaudit_ltf_shm->filename);
-  pg_strftime(pgaudit_ltf_shm->filename + len, MAXPGPATH - len, guc_pgaudit_ltf_log_filename, pg_localtime(&timet, log_timezone));
+  strcpy(pgaudit_ltf_shm->filename, filename);
   LWLockRelease(pgaudit_ltf_shm->lock);
-}
 
-/*
- * @brief Calculates next rotation time
- * @param void
- * @return void
-*/
-void PgAuditLogToFile_calculate_next_rotation_time(void)
-{
-  Timestamp next_rotation_time;
-
-  if (UsedShmemSegAddr == NULL || pgaudit_ltf_shm == NULL)
-    return;
-
-  next_rotation_time = pgauditlogtofile_truncate_timestamp(GetCurrentTimestamp());
-  next_rotation_time += guc_pgaudit_ltf_log_rotation_age * USECS_PER_MINUTE;
-
-  LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
-  pgaudit_ltf_shm->next_rotation_time = next_rotation_time;
-  LWLockRelease(pgaudit_ltf_shm->lock);
-  ereport(DEBUG3, (errmsg("pgauditlogtofile next_rotation_time %ld %s",
-                          pgaudit_ltf_shm->next_rotation_time, timestamptz_to_str(pgaudit_ltf_shm->next_rotation_time))));
+  pfree(filename);
 }
 
 /*
@@ -218,61 +200,20 @@ void PgAuditLogToFile_calculate_next_rotation_time(void)
  */
 bool PgAuditLogToFile_needs_rotate_file(void)
 {
+  pg_time_t now;  
+
   if (UsedShmemSegAddr == NULL || pgaudit_ltf_shm == NULL)
     return false;
 
-  ereport(DEBUG5, (errmsg("pgauditlogtofile needs_rotate_file %ld %ld", GetCurrentTimestamp(), pgaudit_ltf_shm->next_rotation_time)));
-  if (guc_pgaudit_ltf_log_rotation_age > 0 &&
-      pgauditlogtofile_truncate_timestamp(GetCurrentTimestamp()) >= pgaudit_ltf_shm->next_rotation_time)
+  if (guc_pgaudit_ltf_log_rotation_age < 1)
+    return false;
+
+  now = (pg_time_t) time(NULL);
+	if (now >= pgaudit_ltf_shm->next_rotation_time)
   {
+    ereport(DEBUG3, (errmsg("pgauditlogtofile needs to rotate file %s", pgaudit_ltf_shm->filename)));
     return true;
   }
 
   return false;
-}
-
-/**
- * @brief Truncate timestamp to the desired rotation unit
- *   If we rotate every hour, truncate to the current hour
- *   If we rotate every day, truncate to the current day
- * @param t: timestamp
- * @return Timestamp: truncated timestamp
- */
-Timestamp
-pgauditlogtofile_truncate_timestamp(Timestamp t)
-{
-  struct pg_tm tm;
-  fsec_t fsec;
-  Timestamp nt;
-
-  if (timestamp2tm(t, NULL, &tm, &fsec, NULL, NULL) != 0)
-  {
-    ereport(WARNING, errmsg("pgauditlogtofile failed to truncate timestamp - tm conversion"));
-    return t;
-  }
-
-  // Discard current seconds
-  tm.tm_sec = 0;
-
-  // If we rotate every hour, consider 00 as the current minute
-  if (guc_pgaudit_ltf_log_rotation_age >= MINS_PER_HOUR)
-  {
-    ereport(DEBUG5, errmsg("pgauditlogtofile truncate timestamp - tm_min = 0"));
-    tm.tm_min = 0;
-  }
-
-  // If we rotate every day, consider 00:00 as the current time
-  if (guc_pgaudit_ltf_log_rotation_age >= HOURS_PER_DAY * MINS_PER_HOUR)
-  {
-    ereport(DEBUG5, errmsg("pgauditlogtofile truncate timestamp - tm_hour = 0"));
-    tm.tm_hour = 0;
-  }
-
-  if (tm2timestamp(&tm, 0, NULL, &nt) != 0)
-  {
-    ereport(WARNING, errmsg("pgauditlogtofile failed to truncate timestamp - timestamp conversion"));
-    return t;
-  }
-
-  return nt;
 }

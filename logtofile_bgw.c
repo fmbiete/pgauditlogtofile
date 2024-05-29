@@ -11,9 +11,6 @@
  */
 #include "logtofile_bgw.h"
 
-#include "logtofile_shmem.h"
-#include "logtofile_vars.h"
-
 /* these are always necessary for a bgworker */
 #include <miscadmin.h>
 #include <postmaster/bgworker.h>
@@ -33,6 +30,11 @@
 #include <utils/guc.h>
 #include <utils/memutils.h>
 #include <utils/timestamp.h>
+
+#include "logtofile_filename.h"
+#include "logtofile_shmem.h"
+#include "logtofile_vars.h"
+
 
 /* global settings */
 static bool PgAuditLogToFileReloadConfig = false;
@@ -86,8 +88,8 @@ void PgAuditLogToFileMain(Datum arg)
     {
       ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop reload cfg")));
       ProcessConfigFile(PGC_SIGHUP);
-      PgAuditLogToFile_calculate_filename();
-      PgAuditLogToFile_calculate_next_rotation_time();
+      PgAuditLogToFile_calculate_current_filename();
+      PgAuditLogToFile_set_next_rotation_time();
       ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
       PgAuditLogToFileReloadConfig = false;
     }
@@ -96,8 +98,8 @@ void PgAuditLogToFileMain(Datum arg)
       if (PgAuditLogToFile_needs_rotate_file())
       {
         ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop needs rotation %s", pgaudit_ltf_shm->filename)));
-        PgAuditLogToFile_calculate_filename();
-        PgAuditLogToFile_calculate_next_rotation_time();
+        PgAuditLogToFile_calculate_current_filename();
+        PgAuditLogToFile_set_next_rotation_time();
         ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
       }
     }

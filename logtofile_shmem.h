@@ -21,8 +21,7 @@ extern void PgAuditLogToFile_shmem_shutdown(int code, Datum arg);
 extern void PgAuditLogToFile_shmem_request(void);
 #endif
 
-extern void PgAuditLogToFile_calculate_filename(void);
-extern void PgAuditLogToFile_calculate_next_rotation_time(void);
+extern void PgAuditLogToFile_calculate_current_filename(void);
 extern bool PgAuditLogToFile_needs_rotate_file(void);
 
 #endif
