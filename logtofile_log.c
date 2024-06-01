@@ -55,7 +55,7 @@
 static char formatted_log_time[FORMATTED_TS_LEN];
 static char formatted_start_time[FORMATTED_TS_LEN];
 static char filename_in_use[MAXPGPATH];
-static int flag_thread = 0; // 0: new proc, 1: th running, 2: th running sleep used, 3: th closed
+static int autoclose_thread_status_debug = 0; // 0: new proc, 1: th running, 2: th running sleep used, 3: th closed
 
 /* forward declaration private functions */
 void pgauditlogtofile_close_file(void);
@@ -165,10 +165,10 @@ bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
     if (pg_atomic_test_set_flag(&pgaudit_ltf_autoclose_flag_thread))
     {
       ereport(DEBUG3, (errmsg("pgauditlogtofile record_audit - create autoclose thread")));
-      flag_thread = 1;
+      autoclose_thread_status_debug = 1;
       pthread_attr_init(&pgaudit_ltf_autoclose_thread_attr);
       pthread_attr_setdetachstate(&pgaudit_ltf_autoclose_thread_attr, PTHREAD_CREATE_DETACHED);
-      pthread_create(&pgaudit_ltf_autoclose_thread, &pgaudit_ltf_autoclose_thread_attr, PgAuditLogToFile_autoclose_run, &flag_thread);
+      pthread_create(&pgaudit_ltf_autoclose_thread, &pgaudit_ltf_autoclose_thread_attr, PgAuditLogToFile_autoclose_run, &autoclose_thread_status_debug);
     }
   }
 

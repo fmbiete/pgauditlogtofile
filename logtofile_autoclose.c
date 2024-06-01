@@ -22,7 +22,7 @@
 
 /**
  * @brief Main thread function to close the audit log file after a certain time
- * @param arg: flag_thread - used to debug the thread status
+ * @param arg: autoclose_thread_status_debug - used to debug the thread status
  * @return void
  */
 void *PgAuditLogToFile_autoclose_run(void *arg)
@@ -31,10 +31,10 @@ void *PgAuditLogToFile_autoclose_run(void *arg)
   TimestampTz ts_now;
   long secs;
   int microsecs;
-  int *flag_thread;
+  int *autoclose_thread_status_debug;
 
   // don't use ereport here, use this flag to identify the position
-  flag_thread = (int *)arg;
+  autoclose_thread_status_debug = (int *)arg;
 
   while (1)
   {
@@ -46,12 +46,12 @@ void *PgAuditLogToFile_autoclose_run(void *arg)
     {
       fclose(pgaudit_ltf_file_handler);
       pgaudit_ltf_file_handler = NULL;
-      *flag_thread = 3; // file closed
+      *autoclose_thread_status_debug = 3; // file closed
       break;
     }
     else
     {
-      *flag_thread = 2; // file recently used
+      *autoclose_thread_status_debug = 2; // file recently used
     }
   }
 
