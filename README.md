@@ -50,10 +50,9 @@ Number of minutes after which the audit file will be rotated.
 
 **Default**: 1440 minutes (1 day)
 
-**Notes**:
+**Performance Notes**:
 - If _log_rotation_age < 60_ the rotation background worker will wake up every 10 seconds.
 - If _log_rotation_age > 60_ the rotation background worker will wake up every 1 minute.
-- _log_rotation_age = 0_ will disable the extension and the audit logging will be done to PostgreSQL server logger.
 
 ### pgaudit.log_connections
 Intercepts server log messages emited when log_connections is on
