@@ -166,7 +166,9 @@ bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
     {
       ereport(DEBUG3, (errmsg("pgauditlogtofile record_audit - create autoclose thread")));
       flag_thread = 1;
-      pthread_create(&pgaudit_ltf_autoclose_thread, NULL, PgAuditLogToFile_autoclose_run, &flag_thread);
+      pthread_attr_init(&pgaudit_ltf_autoclose_thread_attr);
+      pthread_attr_setdetachstate(&pgaudit_ltf_autoclose_thread_attr, PTHREAD_CREATE_DETACHED);
+      pthread_create(&pgaudit_ltf_autoclose_thread, &pgaudit_ltf_autoclose_thread_attr, PgAuditLogToFile_autoclose_run, &flag_thread);
     }
   }
 

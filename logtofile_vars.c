@@ -26,6 +26,7 @@ FILE *pgaudit_ltf_file_handler = NULL;
 // Background auto-close file handler
 pg_atomic_flag pgaudit_ltf_autoclose_flag_thread;
 pthread_t pgaudit_ltf_autoclose_thread;
+pthread_attr_t pgaudit_ltf_autoclose_thread_attr;
 TimestampTz pgaudit_ltf_autoclose_active_ts;
 
 // Hook log

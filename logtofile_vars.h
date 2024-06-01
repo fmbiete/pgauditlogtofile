@@ -36,6 +36,7 @@ extern FILE *pgaudit_ltf_file_handler;
 // Background auto-close file handler
 extern pg_atomic_flag pgaudit_ltf_autoclose_flag_thread;
 extern pthread_t pgaudit_ltf_autoclose_thread;
+extern pthread_attr_t pgaudit_ltf_autoclose_thread_attr;
 extern Timestamp pgaudit_ltf_autoclose_active_ts;
 
 // Hook log
