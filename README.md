@@ -82,6 +82,51 @@ _This features creates a background thread that will sleep in the background and
 **Default**: 0
 
 
+
+### pgAudit Log To File - Record format
+```
+CREATE FOREIGN TABLE pgauditlogtofile_extern (
+  ----fields from postgresql session----
+  log_time timestamptz(3) NULL,
+  user_name text NULL,
+  database_name text NULL,
+  process_id int4 NULL,
+  remote_client text NULL,
+  remote_port text NULL,
+  session_id text NULL,
+  session_line_num int8 NULL,
+  command_tag text NULL,
+  session_start_time timestamptz NULL,
+  virtual_transaction_id text NULL,
+  transaction_id int8 NULL,
+  sql_state_code text NULL,
+  -----fields from pgaudit record-------
+  audit_type text NULL,
+  statement_id text NULL,
+  substatement_id text NULL,
+  "class" text NULL,
+  command text NULL,
+  object_type text NULL,
+  object_name text NULL,
+  "statement" text NULL,
+  "parameter" text NULL,
+  ----additional fields--------
+  detail text NULL,
+  hint text NULL,
+  internal_query text NULL,
+  internal_query_pos int4 NULL,
+  context text NULL,
+  debug_query text NULL,
+  cursor_pos int4 NULL,
+  function_name text NULL,
+  filename_linenum text NULL,
+  application_name text NULL
+)
+SERVER your_server
+OPTIONS (filename 'audit_log.csv', format 'csv');
+```
+
+
 ### Test
 ```
 cd test
