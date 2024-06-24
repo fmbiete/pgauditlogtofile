@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- * logtofile.h
- *      Main entry point for logtofile
+ * logtofile_filename.c
+ *      Functions to calculate the filename of the log file
  *
  * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
  *
@@ -9,10 +9,12 @@
  *  http://www.postgresql.org/about/licence/
  *-------------------------------------------------------------------------
  */
-#ifndef _LOGTOFILE_H_
-#define _LOGTOFILE_H_
+#ifndef _LOGTOFILE_FILENAME_H_
+#define _LOGTOFILE_FILENAME_H_
 
-void _PG_init(void);
-void _PG_fini(void);
+#include "postgres.h"
 
-#endif
+extern char *PgAuditLogToFile_current_filename(void);
+extern void PgAuditLogToFile_set_next_rotation_time(void);
+
+#endif // _LOGTOFILE_FILENAME_H_

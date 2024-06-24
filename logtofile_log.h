@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- * logtofile.h
- *      Main entry point for logtofile
+ * logtofile_log.h
+ *      Functions to write audit logs to file
  *
  * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
  *
@@ -9,10 +9,12 @@
  *  http://www.postgresql.org/about/licence/
  *-------------------------------------------------------------------------
  */
-#ifndef _LOGTOFILE_H_
-#define _LOGTOFILE_H_
+#ifndef _LOGTOFILE_LOG_H_
+#define _LOGTOFILE_LOG_H_
 
-void _PG_init(void);
-void _PG_fini(void);
+#include <postgres.h>
+
+/* Hook functions */
+extern void PgAuditLogToFile_emit_log(ErrorData *edata);
 
 #endif

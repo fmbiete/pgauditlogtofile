@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- * logtofile.h
- *      Main entry point for logtofile
+ * logtofile_guc.h
+ *      GUC variables for logtofile
  *
  * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
  *
@@ -9,10 +9,12 @@
  *  http://www.postgresql.org/about/licence/
  *-------------------------------------------------------------------------
  */
-#ifndef _LOGTOFILE_H_
-#define _LOGTOFILE_H_
+#ifndef _LOGTOFILE_GUC_H_
+#define _LOGTOFILE_GUC_H_
 
-void _PG_init(void);
-void _PG_fini(void);
+#include <postgres.h>
+#include <utils/guc.h>
+
+extern bool guc_check_directory(char **newval, void **extra, GucSource source);
 
 #endif

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- * logtofile.h
- *      Main entry point for logtofile
+ * logtofile_autoclose.h
+ *      Autoclose thread for logtofile
  *
  * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
  *
@@ -9,10 +9,11 @@
  *  http://www.postgresql.org/about/licence/
  *-------------------------------------------------------------------------
  */
-#ifndef _LOGTOFILE_H_
-#define _LOGTOFILE_H_
+#ifndef _LOGTOFILE_AUTOCLOSE_H_
+#define _LOGTOFILE_AUTOCLOSE_H_
 
-void _PG_init(void);
-void _PG_fini(void);
+#include <postgres.h>
+
+extern void *PgAuditLogToFile_autoclose_run(void *arg);
 
 #endif

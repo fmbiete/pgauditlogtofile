@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- * logtofile.h
- *      Main entry point for logtofile
+ * logtofile_connect.h
+ *      Functions to parse connect and disconnect messages
  *
  * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
  *
@@ -9,10 +9,12 @@
  *  http://www.postgresql.org/about/licence/
  *-------------------------------------------------------------------------
  */
-#ifndef _LOGTOFILE_H_
-#define _LOGTOFILE_H_
+#ifndef _LOGTOFILE_CONNECT_H_
+#define _LOGTOFILE_CONNECT_H_
 
-void _PG_init(void);
-void _PG_fini(void);
+#include <postgres.h>
+
+extern char **
+PgAuditLogToFile_connect_UniquePrefixes(const char **messages, const size_t num_messages, size_t *num_unique);
 
 #endif
