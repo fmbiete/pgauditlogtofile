@@ -410,8 +410,13 @@ void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, 
 
   /* Virtual transaction id */
   /* keep VXID format in sync with lockfuncs.c */
+#if (PG_VERSION_NUM >= 170000)
+  if (MyProc != NULL && MyProc->vxid.procNumber != INVALID_PROC_NUMBER)
+    appendStringInfo(buf, "%d/%u", MyProc->vxid.procNumber, MyProc->vxid.lxid);
+#else
   if (MyProc != NULL && MyProc->backendId != InvalidBackendId)
     appendStringInfo(buf, "%d/%u", MyProc->backendId, MyProc->lxid);
+#endif
   appendStringInfoCharMacro(buf, ',');
 
   /* Transaction id */
