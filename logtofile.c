@@ -39,7 +39,7 @@
  * @brief Main entry point for the extension
  * @param void
  * @return void
-*/
+ */
 void _PG_init(void)
 {
   BackgroundWorker worker;
@@ -94,6 +94,7 @@ void _PG_init(void)
   EmitWarningsOnPlaceholders("pgauditlogtofile");
 
   /* background worker */
+  MemSet(&worker, 0, sizeof(BackgroundWorker));
   worker.bgw_flags = BGWORKER_SHMEM_ACCESS;
   worker.bgw_start_time = BgWorkerStart_RecoveryFinished;
   worker.bgw_restart_time = 1;
@@ -124,7 +125,7 @@ void _PG_init(void)
  * @brief Extension finalization
  * @param void
  * @return void
-*/
+ */
 void _PG_fini(void)
 {
   emit_log_hook = prev_emit_log_hook;
