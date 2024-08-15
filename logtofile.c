@@ -42,7 +42,7 @@
 */
 void _PG_init(void)
 {
-  BackgroundWorker worker;
+  BackgroundWorker worker = {0};
 
   if (!process_shared_preload_libraries_in_progress)
   {
