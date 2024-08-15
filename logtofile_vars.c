@@ -16,6 +16,7 @@ char *guc_pgaudit_ltf_log_directory = NULL;
 char *guc_pgaudit_ltf_log_filename = NULL;
 char *guc_pgaudit_log_last_rotation = NULL;
 int guc_pgaudit_ltf_log_rotation_age = HOURS_PER_DAY * MINS_PER_HOUR; // Default: 1 day
+int guc_pgaudit_ltf_log_rotation_size = 0;
 bool guc_pgaudit_ltf_log_connections = false;                         // Default: off
 bool guc_pgaudit_ltf_log_disconnections = false;                      // Default: off
 int guc_pgaudit_ltf_auto_close_minutes = 0;                           // Default: off

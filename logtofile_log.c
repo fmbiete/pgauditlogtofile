@@ -15,6 +15,7 @@
 #include "logtofile_guc.h"
 #include "logtofile_shmem.h"
 #include "logtofile_vars.h"
+#include "logtofile_filename.h"
 
 #include <access/xact.h>
 #include <lib/stringinfo.h>
@@ -30,6 +31,7 @@
 #include <storage/proc.h>
 #include <tcop/tcopprot.h>
 #include <utils/ps_status.h>
+#include <utils/wait_event.h>
 
 #include <pthread.h>
 #include <time.h>
@@ -136,9 +138,28 @@ bool pgauditlogtofile_is_enabled(void)
 bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
 {
   bool rc;
+  int deviation;
 
   ereport(DEBUG5, (errmsg("pgauditlogtofile record audit in %s (shm %s)",
                           filename_in_use, pgaudit_ltf_shm->filename)));
+
+  if(!(MyProc == NULL && IsUnderPostmaster) && guc_pgaudit_ltf_log_rotation_size > 0)
+  {
+    deviation = (int)(guc_pgaudit_ltf_log_rotation_size * 1024L * 0.0009);
+    LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
+    if (pgaudit_ltf_shm->total_written_bytes + deviation >= guc_pgaudit_ltf_log_rotation_size * 1024L)
+    {
+      pgaudit_ltf_shm->total_written_bytes = 0;
+      LWLockRelease(pgaudit_ltf_shm->lock);
+      pgaudit_ltf_shm->size_rotation_flag = true;
+      ereport(DEBUG3, (errmsg("pgauditlogtofile the log file size limit has been reached - file update. Current file: %s", pgaudit_ltf_shm->filename)));
+      SetLatch(pgaudit_ltf_shm->worker_latch);
+    }
+    else
+    {
+      LWLockRelease(pgaudit_ltf_shm->lock);
+    }
+  }
   /* do we need to rotate? */
   if (strcmp(filename_in_use, pgaudit_ltf_shm->filename) != 0)
   {
@@ -311,6 +332,18 @@ bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
              errmsg("could not write audit log file \"%s\": %m", filename_in_use)));
     pgauditlogtofile_close_file();
     errno = save_errno;
+  }
+
+  if (rc > 0 && guc_pgaudit_ltf_log_rotation_size > 0)
+  {
+    if(!(MyProc == NULL && IsUnderPostmaster)){
+      LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
+      pgaudit_ltf_shm->total_written_bytes += rc;
+      LWLockRelease(pgaudit_ltf_shm->lock);
+    }
+    else{
+      pgaudit_ltf_shm->total_written_bytes += rc;
+    }
   }
 
   return rc == buf.len;
