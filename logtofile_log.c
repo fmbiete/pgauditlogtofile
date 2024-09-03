@@ -140,7 +140,7 @@ bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
   ereport(DEBUG5, (errmsg("pgauditlogtofile record audit in %s (shm %s)",
                           filename_in_use, pgaudit_ltf_shm->filename)));
   /* do we need to rotate? */
-  if (strcmp(filename_in_use, pgaudit_ltf_shm->filename) != 0)
+  if (strlen(pgaudit_ltf_shm->filename) > 0 && strcmp(filename_in_use, pgaudit_ltf_shm->filename) != 0)
   {
     ereport(DEBUG3, (
                         errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
@@ -148,13 +148,8 @@ bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
     pgauditlogtofile_close_file();
   }
 
-  if (!pgauditlogtofile_is_open_file())
-  {
-    if (!pgauditlogtofile_open_file())
-    {
-      return false;
-    }
-  }
+  if (!pgauditlogtofile_is_open_file() && !pgauditlogtofile_open_file())
+    return false;
 
   rc = pgauditlogtofile_write_audit(edata, exclude_nchars);
   pgaudit_ltf_autoclose_active_ts = GetCurrentTimestamp();
@@ -239,7 +234,11 @@ bool pgauditlogtofile_is_prefixed(const char *msg)
 bool pgauditlogtofile_open_file(void)
 {
   mode_t oumask;
-  bool opened = true;
+  bool opened = false;
+
+  // if the filename is empty, we short-circuit
+  if (strlen(pgaudit_ltf_shm->filename) == 0)
+    return opened;
 
   /* Create spool directory if not present; ignore errors */
   (void)MakePGDirectory(guc_pgaudit_ltf_log_directory);
@@ -255,6 +254,7 @@ bool pgauditlogtofile_open_file(void)
 
   if (pgaudit_ltf_file_handler)
   {
+    opened = true;
     /* 128K buffer and flush on demand or when full -> attempt to use only 1 IO operation per record */
     setvbuf(pgaudit_ltf_file_handler, NULL, _IOFBF, 131072);
 #ifdef WIN32
@@ -267,7 +267,6 @@ bool pgauditlogtofile_open_file(void)
   else
   {
     int save_errno = errno;
-    opened = false;
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not open log file \"%s\": %m", pgaudit_ltf_shm->filename)));
