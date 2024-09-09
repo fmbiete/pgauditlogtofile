@@ -54,6 +54,13 @@ Number of minutes after which the audit file will be rotated.
 - If _log_rotation_age < 60_ the rotation background worker will wake up every 10 seconds.
 - If _log_rotation_age > 60_ the rotation background worker will wake up every 1 minute.
 
+### pgaudit.log_rotation_size
+ This parameter determines the maximum size of an individual log file. Turns on only when the parameter is explicitly specified and adds microseconds to the end of the file name, so the 'pgaudit-%Y-%m-%d_%H%M%S.log' pattern is preferred.
+
+**Scope**: System
+
+**Default**: 0
+
 ### pgaudit.log_connections
 Intercepts server log messages emited when log_connections is on
 

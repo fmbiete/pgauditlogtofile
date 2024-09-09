@@ -19,6 +19,7 @@
 #include <port/atomics.h>
 #include <storage/ipc.h>
 #include <storage/lwlock.h>
+#include <storage/latch.h>
 
 #include <pthread.h>
 
@@ -26,6 +27,7 @@
 extern char *guc_pgaudit_ltf_log_directory;
 extern char *guc_pgaudit_ltf_log_filename;
 extern int guc_pgaudit_ltf_log_rotation_age;
+extern int guc_pgaudit_ltf_log_rotation_size;
 extern bool guc_pgaudit_ltf_log_connections;
 extern bool guc_pgaudit_ltf_log_disconnections;
 extern int guc_pgaudit_ltf_auto_close_minutes;
@@ -58,6 +60,9 @@ typedef struct pgAuditLogToFileShm
   size_t num_prefixes_disconnection;
   char filename[MAXPGPATH];
   pg_time_t next_rotation_time;
+  int total_written_bytes;
+  bool size_rotation_flag;
+  Latch *worker_latch;
 } PgAuditLogToFileShm;
 
 // Shared Memory

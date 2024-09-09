@@ -56,6 +56,7 @@ void PgAuditLogToFileMain(Datum arg)
   int sleep_ms = SECS_PER_MINUTE * 1000;
   MemoryContext PgAuditLogToFileContext = NULL;
 
+  pgaudit_ltf_shm->worker_latch = &MyProc->procLatch;
   pqsignal(SIGHUP, pgauditlogtofile_sighup);
   pqsignal(SIGINT, SIG_IGN);
   pqsignal(SIGTERM, pgauditlogtofile_sigterm);
@@ -101,6 +102,8 @@ void PgAuditLogToFileMain(Datum arg)
         PgAuditLogToFile_calculate_current_filename();
         PgAuditLogToFile_set_next_rotation_time();
         ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
+        pgaudit_ltf_shm->size_rotation_flag = false;
+        pgaudit_ltf_shm->total_written_bytes = 0;
       }
     }
 

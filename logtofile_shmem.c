@@ -15,6 +15,7 @@
 #include <storage/pg_shmem.h>
 #include <storage/shmem.h>
 #include <utils/timestamp.h>
+#include <sys/time.h>
 
 #include <time.h>
 
@@ -137,6 +138,11 @@ void PgAuditLogToFile_shmem_startup(void)
     pgaudit_ltf_shm->lock = &(GetNamedLWLockTranche("pgauditlogtofile"))->lock;    
     PgAuditLogToFile_calculate_current_filename();
     PgAuditLogToFile_set_next_rotation_time();
+
+    // Initial worker latch
+    pgaudit_ltf_shm->worker_latch = NULL;
+    // Initial global log file memory counter
+    pgaudit_ltf_shm->total_written_bytes = 0;
   }
   LWLockRelease(AddinShmemInitLock);
 
@@ -185,10 +191,78 @@ void PgAuditLogToFile_calculate_current_filename(void)
     return;
   }
 
-  LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
-  memset(pgaudit_ltf_shm->filename, 0, sizeof(pgaudit_ltf_shm->filename));
-  strcpy(pgaudit_ltf_shm->filename, filename);
-  LWLockRelease(pgaudit_ltf_shm->lock);
+  if(guc_pgaudit_ltf_log_rotation_size > 0)
+  {
+      char *last_dot = NULL;
+      size_t prefix_len;
+
+      last_dot = strrchr(filename, '.');
+      if (last_dot != NULL)
+      {
+        prefix_len = last_dot - filename;
+      }
+      else
+      {
+        last_dot = filename;
+        prefix_len = sizeof(filename);
+      }
+
+      LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
+      if (strncmp(filename, pgaudit_ltf_shm->filename, prefix_len) == 0)
+      {
+        struct timeval tv;
+        int microseconds;
+
+        gettimeofday(&tv, NULL);
+
+        microseconds = tv.tv_usec;
+
+        if (last_dot != NULL)
+        {
+            char new_filename[MAXPGPATH];
+
+            strncpy(new_filename, filename, prefix_len);
+            new_filename[prefix_len] = '\0';
+
+            snprintf(new_filename + prefix_len, sizeof(new_filename) - prefix_len, "_%d%s", microseconds, last_dot);
+
+            memset(pgaudit_ltf_shm->filename, 0, sizeof(pgaudit_ltf_shm->filename));
+            strcpy(pgaudit_ltf_shm->filename, new_filename);
+        }
+        else
+        {
+            snprintf(pgaudit_ltf_shm->filename, sizeof(pgaudit_ltf_shm->filename), "%s_%d", filename, microseconds);
+
+        }
+      }
+      else
+      {
+        if (last_dot != NULL)
+        {
+            char new_filename[MAXPGPATH];
+
+            strncpy(new_filename, filename, prefix_len);
+            new_filename[prefix_len] = '\0';
+
+            snprintf(new_filename + prefix_len, sizeof(new_filename) - prefix_len, "_%d%s", 0, last_dot);
+
+            memset(pgaudit_ltf_shm->filename, 0, sizeof(pgaudit_ltf_shm->filename));
+            strcpy(pgaudit_ltf_shm->filename, new_filename);
+        }
+        else
+        {
+            snprintf(pgaudit_ltf_shm->filename, sizeof(pgaudit_ltf_shm->filename), "%s_%d", filename, 0);
+        }
+      }
+      LWLockRelease(pgaudit_ltf_shm->lock);
+  }
+  else
+  {
+    LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
+    memset(pgaudit_ltf_shm->filename, 0, sizeof(pgaudit_ltf_shm->filename));
+    strcpy(pgaudit_ltf_shm->filename, filename);
+    LWLockRelease(pgaudit_ltf_shm->lock);
+  }
 
   pfree(filename);
 }
@@ -200,13 +274,19 @@ void PgAuditLogToFile_calculate_current_filename(void)
  */
 bool PgAuditLogToFile_needs_rotate_file(void)
 {
-  pg_time_t now;  
+  pg_time_t now;
 
   if (UsedShmemSegAddr == NULL || pgaudit_ltf_shm == NULL)
     return false;
 
   if (guc_pgaudit_ltf_log_rotation_age < 1)
     return false;
+
+  if((guc_pgaudit_ltf_log_rotation_size > 0) && pgaudit_ltf_shm->size_rotation_flag)
+  {
+    ereport(DEBUG3, (errmsg("pgauditlogtofile needs to rotate file %s", pgaudit_ltf_shm->filename)));
+    return true;
+  }
 
   now = (pg_time_t) time(NULL);
 	if (now >= pgaudit_ltf_shm->next_rotation_time)
