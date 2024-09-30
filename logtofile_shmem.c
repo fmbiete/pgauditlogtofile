@@ -30,6 +30,7 @@ const char *postgresConnMsg[] = {
     "connection received: host=%s",
     "connection authorized: user=%s",
     "connection authenticated: identity=\"%s\" method=%s (%s:%d)",
+    "connection authenticated: user=\"%s\" method=%s (%s:%d)",
     "replication connection authorized: user=%s",
     "replication connection authorized: user=%s SSL enabled (protocol=%s, cipher=%s, bits=%d, compression=%s)",
     "replication connection authorized: user=%s application_name=%s",
