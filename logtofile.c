@@ -72,6 +72,12 @@ void _PG_init(void)
       INT_MAX / SECS_PER_MINUTE, PGC_SIGHUP,
       GUC_NOT_IN_SAMPLE | GUC_UNIT_MIN | GUC_SUPERUSER_ONLY, NULL, NULL, NULL);
 
+  DefineCustomIntVariable(
+    "pgaudit.log_rotation_size",
+    "Automatic rotation of logfiles will happen after that much log output", NULL,
+    &guc_pgaudit_ltf_log_rotation_size, 0, 0, INT_MAX / 1024, PGC_SIGHUP,
+    GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY | GUC_UNIT_KB, NULL, NULL, NULL);
+
   DefineCustomBoolVariable(
       "pgaudit.log_connections",
       "Intercepts log_connections messages", NULL,
