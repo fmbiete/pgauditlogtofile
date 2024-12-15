@@ -108,16 +108,16 @@ void _PG_init(void)
 
 /* backend hooks */
 #if (PG_VERSION_NUM >= 150000)
-  prev_shmem_request_hook = shmem_request_hook;
+  pgaudit_ltf_prev_shmem_request_hook = shmem_request_hook;
   shmem_request_hook = PgAuditLogToFile_shmem_request;
 #else
   RequestAddinShmemSpace(MAXALIGN(sizeof(PgAuditLogToFileShm)));
   RequestNamedLWLockTranche("pgauditlogtofile", 1);
 #endif
 
-  prev_shmem_startup_hook = shmem_startup_hook;
+  pgaudit_ltf_prev_shmem_startup_hook = shmem_startup_hook;
   shmem_startup_hook = PgAuditLogToFile_shmem_startup;
-  prev_emit_log_hook = emit_log_hook;
+  pgaudit_ltf_prev_emit_log_hook = emit_log_hook;
   emit_log_hook = PgAuditLogToFile_emit_log;
 }
 
@@ -128,6 +128,6 @@ void _PG_init(void)
  */
 void _PG_fini(void)
 {
-  emit_log_hook = prev_emit_log_hook;
-  shmem_startup_hook = prev_shmem_startup_hook;
+  emit_log_hook = pgaudit_ltf_prev_emit_log_hook;
+  shmem_startup_hook = pgaudit_ltf_prev_shmem_startup_hook;
 }

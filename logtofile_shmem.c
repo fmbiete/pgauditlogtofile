@@ -66,11 +66,11 @@ Timestamp pgauditlogtofile_truncate_timestamp(Timestamp t);
  * @brief Request shared memory space
  * @param void
  * @return void
-*/
+ */
 void PgAuditLogToFile_shmem_request(void)
 {
-  if (prev_shmem_request_hook)
-    prev_shmem_request_hook();
+  if (pgaudit_ltf_prev_shmem_request_hook)
+    pgaudit_ltf_prev_shmem_request_hook();
 
   RequestAddinShmemSpace(MAXALIGN(sizeof(PgAuditLogToFileShm)));
   RequestNamedLWLockTranche("pgauditlogtofile", 1);
@@ -89,8 +89,8 @@ void PgAuditLogToFile_shmem_startup(void)
   char **prefixes = NULL;
 
   // Execute other hooks
-  if (prev_shmem_startup_hook)
-    prev_shmem_startup_hook();
+  if (pgaudit_ltf_prev_shmem_startup_hook)
+    pgaudit_ltf_prev_shmem_startup_hook();
 
   /* reset in case this is a restart within the postmaster */
   pgaudit_ltf_shm = NULL;
@@ -135,7 +135,7 @@ void PgAuditLogToFile_shmem_startup(void)
     }
     pfree(prefixes);
 
-    pgaudit_ltf_shm->lock = &(GetNamedLWLockTranche("pgauditlogtofile"))->lock;    
+    pgaudit_ltf_shm->lock = &(GetNamedLWLockTranche("pgauditlogtofile"))->lock;
     PgAuditLogToFile_calculate_current_filename();
     PgAuditLogToFile_set_next_rotation_time();
   }
@@ -201,7 +201,7 @@ void PgAuditLogToFile_calculate_current_filename(void)
  */
 bool PgAuditLogToFile_needs_rotate_file(void)
 {
-  pg_time_t now;  
+  pg_time_t now;
 
   if (UsedShmemSegAddr == NULL || pgaudit_ltf_shm == NULL)
     return false;
@@ -209,8 +209,8 @@ bool PgAuditLogToFile_needs_rotate_file(void)
   if (guc_pgaudit_ltf_log_rotation_age < 1)
     return false;
 
-  now = (pg_time_t) time(NULL);
-	if (now >= pgaudit_ltf_shm->next_rotation_time)
+  now = (pg_time_t)time(NULL);
+  if (now >= pgaudit_ltf_shm->next_rotation_time)
   {
     ereport(DEBUG3, (errmsg("pgauditlogtofile needs to rotate file %s", pgaudit_ltf_shm->filename)));
     return true;

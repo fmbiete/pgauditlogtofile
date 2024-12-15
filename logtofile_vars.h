@@ -40,7 +40,7 @@ extern pthread_attr_t pgaudit_ltf_autoclose_thread_attr;
 extern Timestamp pgaudit_ltf_autoclose_active_ts;
 
 // Hook log
-extern emit_log_hook_type prev_emit_log_hook;
+extern emit_log_hook_type pgaudit_ltf_prev_emit_log_hook;
 
 // Shared Memory types
 typedef struct PgAuditLogToFilePrefix
@@ -65,9 +65,9 @@ extern PgAuditLogToFileShm *pgaudit_ltf_shm;
 extern pg_atomic_flag pgaudit_ltf_flag_shutdown;
 
 // Shared Memory - Hook
-extern shmem_startup_hook_type prev_shmem_startup_hook;
+extern shmem_startup_hook_type pgaudit_ltf_prev_shmem_startup_hook;
 #if (PG_VERSION_NUM >= 150000)
-extern shmem_request_hook_type prev_shmem_request_hook;
+extern shmem_request_hook_type pgaudit_ltf_prev_shmem_request_hook;
 #endif
 
 #endif

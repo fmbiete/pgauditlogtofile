@@ -30,14 +30,14 @@ pthread_attr_t pgaudit_ltf_autoclose_thread_attr;
 TimestampTz pgaudit_ltf_autoclose_active_ts;
 
 // Hook log
-emit_log_hook_type prev_emit_log_hook = NULL;
+emit_log_hook_type pgaudit_ltf_prev_emit_log_hook = NULL;
 
 // Shared memory
 PgAuditLogToFileShm *pgaudit_ltf_shm = NULL;
 pg_atomic_flag pgaudit_ltf_flag_shutdown;
 
 // Shared memory hook
-shmem_startup_hook_type prev_shmem_startup_hook = NULL;
+shmem_startup_hook_type pgaudit_ltf_prev_shmem_startup_hook = NULL;
 #if (PG_VERSION_NUM >= 150000)
-shmem_request_hook_type prev_shmem_request_hook = NULL;
+shmem_request_hook_type pgaudit_ltf_prev_shmem_request_hook = NULL;
 #endif

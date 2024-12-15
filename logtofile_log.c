@@ -105,8 +105,8 @@ void PgAuditLogToFile_emit_log(ErrorData *edata)
     }
   }
 
-  if (prev_emit_log_hook)
-    prev_emit_log_hook(edata);
+  if (pgaudit_ltf_prev_emit_log_hook)
+    pgaudit_ltf_prev_emit_log_hook(edata);
 }
 
 /**
