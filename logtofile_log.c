@@ -69,6 +69,9 @@ bool pgauditlogtofile_open_file(void);
 bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars);
 bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars);
 
+static void appendStringInfoStringEscape(StringInfo str, const char *s, char escape);
+static void appendStringInfoStringEscapeQuotes(StringInfo str, const char *s);
+
 /* public methods */
 
 /**
@@ -316,6 +319,33 @@ bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
 }
 
 /**
+ * @brief Append a null-terminated string to buffer and
+ * enclose it in escape symbols.
+ * @param buf: buffer to write the formatted line
+ * @param str: string added to buffer
+ * @param escape: escape symbol
+ */
+static void
+appendStringInfoStringEscape(StringInfo buf, const char *str, char escape)
+{
+  appendStringInfoCharMacro(buf, escape);
+  appendStringInfoString(buf, str);
+  appendStringInfoCharMacro(buf, escape);
+}
+
+/**
+ * @brief Append a null-terminated string to buffer and
+ * enclose it in double quotes ("").
+ * @param buf: buffer to write the formatted line
+ * @param str: string added to buffer
+ */
+static void
+appendStringInfoStringEscapeQuotes(StringInfo buf, const char *str)
+{
+  appendStringInfoStringEscape(buf, str, '"');
+}
+
+/**
  * @brief Formats an audit log line
  * @param buf: buffer to write the formatted line
  * @param edata: error data
@@ -354,12 +384,12 @@ void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, 
 
   /* username */
   if (MyProcPort && MyProcPort->user_name)
-    appendStringInfoString(buf, MyProcPort->user_name);
+    appendStringInfoStringEscapeQuotes(buf, MyProcPort->user_name);
   appendStringInfoCharMacro(buf, ',');
 
   /* database name */
   if (MyProcPort && MyProcPort->database_name)
-    appendStringInfoString(buf, MyProcPort->database_name);
+    appendStringInfoStringEscapeQuotes(buf, MyProcPort->database_name);
   appendStringInfoCharMacro(buf, ',');
 
   /* Process id  */
@@ -414,12 +444,12 @@ void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, 
     appendStringInfo(buf, "%d/%u", MyProc->vxid.procNumber, MyProc->vxid.lxid);
 #else
   if (MyProc != NULL && MyProc->backendId != InvalidBackendId)
-    appendStringInfo(buf, "%d/%u", MyProc->backendId, MyProc->lxid);
+    appendStringInfo(buf, LXID_FORMAT_VXID(MyProc), MyProc->backendId, MyProc->lxid);
 #endif
   appendStringInfoCharMacro(buf, ',');
 
   /* Transaction id */
-  appendStringInfo(buf, "%u", GetTopTransactionIdIfAny());
+  appendStringInfo(buf, LXID_FORMAT_TID(MyProc), GetTopTransactionIdIfAny());
   appendStringInfoCharMacro(buf, ',');
 
   /* SQL state code */
@@ -427,24 +457,24 @@ void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, 
   appendStringInfoCharMacro(buf, ',');
 
   /* errmessage - PGAUDIT formatted text, +7 exclude "AUDIT: " prefix */
-  appendStringInfoString(buf, edata->message + exclude_nchars);
+  appendStringInfoStringEscapeQuotes(buf, edata->message + exclude_nchars);
   appendStringInfoCharMacro(buf, ',');
 
   /* errdetail or errdetail_log */
   if (edata->detail_log)
-    appendStringInfoString(buf, edata->detail_log);
+    appendStringInfoStringEscapeQuotes(buf, edata->detail_log);
   else if (edata->detail)
-    appendStringInfoString(buf, edata->detail);
+    appendStringInfoStringEscapeQuotes(buf, edata->detail);
   appendStringInfoCharMacro(buf, ',');
 
   /* errhint */
   if (edata->hint)
-    appendStringInfoString(buf, edata->hint);
+    appendStringInfoStringEscapeQuotes(buf, edata->hint);
   appendStringInfoCharMacro(buf, ',');
 
   /* internal query */
   if (edata->internalquery)
-    appendStringInfoString(buf, edata->internalquery);
+    appendStringInfoStringEscapeQuotes(buf, edata->internalquery);
   appendStringInfoCharMacro(buf, ',');
 
   /* if printed internal query, print internal pos too */
@@ -454,14 +484,14 @@ void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, 
 
   /* errcontext */
   if (edata->context)
-    appendStringInfoString(buf, edata->context);
+    appendStringInfoStringEscapeQuotes(buf, edata->context);
   appendStringInfoCharMacro(buf, ',');
 
   /* user query --- only reported if not disabled by the caller */
   if (debug_query_string != NULL && !edata->hide_stmt)
     print_stmt = true;
   if (print_stmt)
-    appendStringInfoString(buf, debug_query_string);
+    appendStringInfoStringEscapeQuotes(buf, debug_query_string);
   appendStringInfoCharMacro(buf, ',');
   if (print_stmt && edata->cursorpos > 0)
     appendStringInfo(buf, "%d", edata->cursorpos);
@@ -479,14 +509,14 @@ void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, 
                        edata->lineno);
     else if (edata->filename)
       appendStringInfo(&msgbuf, "%s:%d", edata->filename, edata->lineno);
-    appendStringInfoString(buf, msgbuf.data);
+    appendStringInfoStringEscapeQuotes(buf, msgbuf.data);
     pfree(msgbuf.data);
   }
   appendStringInfoCharMacro(buf, ',');
 
   /* application name */
   if (application_name)
-    appendStringInfoString(buf, application_name);
+    appendStringInfoStringEscapeQuotes(buf, application_name);
 
   appendStringInfoCharMacro(buf, '\n');
 }
