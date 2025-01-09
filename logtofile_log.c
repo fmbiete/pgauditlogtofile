@@ -457,7 +457,7 @@ void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, 
   appendStringInfoCharMacro(buf, ',');
 
   /* errmessage - PGAUDIT formatted text, +7 exclude "AUDIT: " prefix */
-  appendStringInfoStringEscapeQuotes(buf, edata->message + exclude_nchars);
+  appendStringInfoString(buf, edata->message + exclude_nchars);
   appendStringInfoCharMacro(buf, ',');
 
   /* errdetail or errdetail_log */
