@@ -13,6 +13,10 @@
 #include "postgres.h"
 #include "utils/guc.h"
 
-PG_MODULE_MAGIC;
+#ifdef PG_MODULE_MAGIC_EXT // Added in 18
+PG_MODULE_MAGIC_EXT(.name = "pgauditlogtofile", .version = "1.6");
+#else
+PG_MODULE_MAGIC; // For PostgreSQL versions < 18
+#endif
 
 #include "logtofile.h"
