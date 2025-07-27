@@ -3,7 +3,7 @@
  * logtofile_filename.c
  *      Functions to calculate the filename of the log file
  *
- * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
+ * Copyright (c) 2020-2025, Francisco Miguel Biete Banon
  *
  * This code is released under the PostgreSQL licence, as given at
  *  http://www.postgresql.org/about/licence/
