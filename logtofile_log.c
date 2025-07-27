@@ -3,7 +3,7 @@
  * logtofile_log.c
  *      Functions to write audit logs to file
  *
- * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
+ * Copyright (c) 2020-2025, Francisco Miguel Biete Banon
  *
  * This code is released under the PostgreSQL licence, as given at
  *  http://www.postgresql.org/about/licence/
@@ -12,27 +12,22 @@
 #include "logtofile_log.h"
 
 #include "logtofile_autoclose.h"
+#include "logtofile_csv.h"
 #include "logtofile_guc.h"
+#include "logtofile_json.h"
 #include "logtofile_shmem.h"
 #include "logtofile_vars.h"
 
-#include <access/xact.h>
 #include <lib/stringinfo.h>
-#include <libpq/libpq-be.h>
-#include <miscadmin.h>
-#include <pgtime.h>
 #include <port/atomics.h>
 #include <postmaster/syslogger.h>
 #include <storage/fd.h>
 #include <storage/ipc.h>
 #include <storage/lwlock.h>
 #include <storage/pg_shmem.h>
-#include <storage/proc.h>
-#include <tcop/tcopprot.h>
-#include <utils/ps_status.h>
+#include <utils/timestamp.h>
 
 #include <pthread.h>
-#include <time.h>
 #include <sys/stat.h>
 
 /* Defines */
@@ -52,16 +47,11 @@
 #endif
 
 /* variables to use only in this unit */
-static char formatted_log_time[FORMATTED_TS_LEN];
-static char formatted_start_time[FORMATTED_TS_LEN];
 static char filename_in_use[MAXPGPATH];
 static int autoclose_thread_status_debug = 0; // 0: new proc, 1: th running, 2: th running sleep used, 3: th closed
 
 /* forward declaration private functions */
 void pgauditlogtofile_close_file(void);
-void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, int exclude_nchars);
-void pgauditlogtofile_format_log_time(void);
-void pgauditlogtofile_format_start_time(void);
 bool pgauditlogtofile_is_enabled(void);
 bool pgauditlogtofile_is_open_file(void);
 bool pgauditlogtofile_is_prefixed(const char *msg);
@@ -288,7 +278,10 @@ bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
 
   initStringInfo(&buf);
   /* create the log line */
-  pgauditlogtofile_create_audit_line(&buf, edata, exclude_nchars);
+  if (pg_strcasecmp(guc_pgaudit_ltf_log_format, "csv") == 0)
+    PgAuditLogToFile_csv_audit(&buf, edata, exclude_nchars);
+  else if (pg_strcasecmp(guc_pgaudit_ltf_log_format, "json") == 0)
+    PgAuditLogToFile_json_audit(&buf, edata, exclude_nchars);
 
   // auto-close maybe has closed the file
   if (!pgaudit_ltf_file_handler)
@@ -313,223 +306,4 @@ bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
   }
 
   return rc == buf.len;
-}
-
-/**
- * @brief Formats an audit log line
- * @param buf: buffer to write the formatted line
- * @param edata: error data
- * @param exclude_nchars: number of characters to exclude from the message
- * @return void
- */
-void pgauditlogtofile_create_audit_line(StringInfo buf, const ErrorData *edata, int exclude_nchars)
-{
-  bool print_stmt = false;
-
-  /* static counter for line numbers */
-  static long log_line_number = 0;
-
-  /* has counter been reset in current process? */
-  static int log_my_pid = 0;
-
-  /*
-   * This is one of the few places where we'd rather not inherit a static
-   * variable's value from the postmaster.  But since we will, reset it when
-   * MyProcPid changes.
-   */
-  if (log_my_pid != MyProcPid)
-  {
-    /* new session */
-    log_line_number = 0;
-    log_my_pid = MyProcPid;
-    /* start session timestamp */
-    pgauditlogtofile_format_start_time();
-  }
-  log_line_number++;
-
-  /* timestamp with milliseconds */
-  pgauditlogtofile_format_log_time();
-  appendStringInfoString(buf, formatted_log_time);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* username */
-  if (MyProcPort && MyProcPort->user_name)
-    appendStringInfoString(buf, MyProcPort->user_name);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* database name */
-  if (MyProcPort && MyProcPort->database_name)
-    appendStringInfoString(buf, MyProcPort->database_name);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* Process id  */
-  appendStringInfo(buf, "%d", log_my_pid);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* Remote host and port */
-  if (MyProcPort && MyProcPort->remote_host)
-  {
-    appendStringInfoString(buf, MyProcPort->remote_host);
-    if (MyProcPort->remote_port && MyProcPort->remote_port[0] != '\0')
-    {
-      appendStringInfoCharMacro(buf, ':');
-      appendStringInfoString(buf, MyProcPort->remote_port);
-    }
-  }
-  appendStringInfoCharMacro(buf, ',');
-
-  /* session id - hex representation of start time . session process id */
-  appendStringInfo(buf, "%lx.%x", (long)MyStartTime, log_my_pid);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* Line number */
-  appendStringInfo(buf, "%ld", log_line_number);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* PS display */
-  if (MyProcPort)
-  {
-    StringInfoData msgbuf;
-    const char *psdisp;
-    int displen;
-
-    initStringInfo(&msgbuf);
-
-    psdisp = get_ps_display(&displen);
-    appendBinaryStringInfo(&msgbuf, psdisp, displen);
-    appendStringInfoString(buf, msgbuf.data);
-
-    pfree(msgbuf.data);
-  }
-  appendStringInfoCharMacro(buf, ',');
-
-  /* session start timestamp */
-  appendStringInfoString(buf, formatted_start_time);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* Virtual transaction id */
-  /* keep VXID format in sync with lockfuncs.c */
-#if (PG_VERSION_NUM >= 170000)
-  if (MyProc != NULL && MyProc->vxid.procNumber != INVALID_PROC_NUMBER)
-    appendStringInfo(buf, "%d/%u", MyProc->vxid.procNumber, MyProc->vxid.lxid);
-#else
-  if (MyProc != NULL && MyProc->backendId != InvalidBackendId)
-    appendStringInfo(buf, "%d/%u", MyProc->backendId, MyProc->lxid);
-#endif
-  appendStringInfoCharMacro(buf, ',');
-
-  /* Transaction id */
-  appendStringInfo(buf, "%u", GetTopTransactionIdIfAny());
-  appendStringInfoCharMacro(buf, ',');
-
-  /* SQL state code */
-  appendStringInfoString(buf, unpack_sql_state(edata->sqlerrcode));
-  appendStringInfoCharMacro(buf, ',');
-
-  /* errmessage - PGAUDIT formatted text, +7 exclude "AUDIT: " prefix */
-  appendStringInfoString(buf, edata->message + exclude_nchars);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* errdetail or errdetail_log */
-  if (edata->detail_log)
-    appendStringInfoString(buf, edata->detail_log);
-  else if (edata->detail)
-    appendStringInfoString(buf, edata->detail);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* errhint */
-  if (edata->hint)
-    appendStringInfoString(buf, edata->hint);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* internal query */
-  if (edata->internalquery)
-    appendStringInfoString(buf, edata->internalquery);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* if printed internal query, print internal pos too */
-  if (edata->internalpos > 0 && edata->internalquery != NULL)
-    appendStringInfo(buf, "%d", edata->internalpos);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* errcontext */
-  if (edata->context)
-    appendStringInfoString(buf, edata->context);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* user query --- only reported if not disabled by the caller */
-  if (debug_query_string != NULL && !edata->hide_stmt)
-    print_stmt = true;
-  if (print_stmt)
-    appendStringInfoString(buf, debug_query_string);
-  appendStringInfoCharMacro(buf, ',');
-  if (print_stmt && edata->cursorpos > 0)
-    appendStringInfo(buf, "%d", edata->cursorpos);
-  appendStringInfoCharMacro(buf, ',');
-
-  /* file error location */
-  if (Log_error_verbosity >= PGERROR_VERBOSE)
-  {
-    StringInfoData msgbuf;
-
-    initStringInfo(&msgbuf);
-
-    if (edata->funcname && edata->filename)
-      appendStringInfo(&msgbuf, "%s, %s:%d", edata->funcname, edata->filename,
-                       edata->lineno);
-    else if (edata->filename)
-      appendStringInfo(&msgbuf, "%s:%d", edata->filename, edata->lineno);
-    appendStringInfoString(buf, msgbuf.data);
-    pfree(msgbuf.data);
-  }
-  appendStringInfoCharMacro(buf, ',');
-
-  /* application name */
-  if (application_name)
-    appendStringInfoString(buf, application_name);
-
-  appendStringInfoCharMacro(buf, '\n');
-}
-
-/**
- * @brief Formats the session start time
- * @param void
- * @return void
- */
-void pgauditlogtofile_format_start_time(void)
-{
-  /*
-   * Note: we expect that guc.c will ensure that log_timezone is set up (at
-   * least with a minimal GMT value) before Log_line_prefix can become
-   * nonempty or CSV mode can be selected.
-   */
-  pg_strftime(formatted_start_time, FORMATTED_TS_LEN, "%Y-%m-%d %H:%M:%S %Z",
-              pg_localtime((pg_time_t *)&MyStartTime, log_timezone));
-}
-
-/**
- * @brief Formats the record time
- * @param void
- * @return void
- */
-void pgauditlogtofile_format_log_time(void)
-{
-  struct timeval tv;
-  char msbuf[5];
-
-  gettimeofday(&tv, NULL);
-
-  /*
-   * Note: we expect that guc.c will ensure that log_timezone is set up (at
-   * least with a minimal GMT value) before Log_line_prefix can become
-   * nonempty or CSV mode can be selected.
-   */
-  pg_strftime(formatted_log_time, FORMATTED_TS_LEN,
-              /* leave room for milliseconds... */
-              "%Y-%m-%d %H:%M:%S     %Z",
-              pg_localtime((pg_time_t *)&(tv.tv_sec), log_timezone));
-
-  /* 'paste' milliseconds into place... */
-  sprintf(msbuf, ".%03d", (int)(tv.tv_usec / 1000));
-  memcpy(formatted_log_time + 19, msbuf, 4);
 }

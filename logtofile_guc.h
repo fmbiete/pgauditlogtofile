@@ -3,7 +3,7 @@
  * logtofile_guc.h
  *      GUC variables for logtofile
  *
- * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
+ * Copyright (c) 2020-2025, Francisco Miguel Biete Banon
  *
  * This code is released under the PostgreSQL licence, as given at
  *  http://www.postgresql.org/about/licence/
@@ -16,5 +16,6 @@
 #include <utils/guc.h>
 
 extern bool guc_check_directory(char **newval, void **extra, GucSource source);
+extern bool guc_check_log_format(char **newval, void **extra, GucSource source);
 
 #endif

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- * logtofile_filename.c
- *      Functions to calculate the filename of the log file
+ * logtofile_csv.h
+ *      Functions to create a csv audit record
  *
  * Copyright (c) 2020-2025, Francisco Miguel Biete Banon
  *
@@ -9,12 +9,11 @@
  *  http://www.postgresql.org/about/licence/
  *-------------------------------------------------------------------------
  */
-#ifndef _LOGTOFILE_FILENAME_H_
-#define _LOGTOFILE_FILENAME_H_
+#ifndef _LOGTOFILE_CVS_H_
+#define _LOGTOFILE_CVS_H_
 
-#include "postgres.h"
+#include <postgres.h>
 
-extern char *PgAuditLogToFile_current_filename(void);
-extern void PgAuditLogToFile_set_next_rotation_time(void);
+extern void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars);
 
-#endif // _LOGTOFILE_FILENAME_H_
+#endif

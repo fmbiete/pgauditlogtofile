@@ -3,7 +3,7 @@
  * logtofile_bgw.c
  *      Background worker for logtofile
  *
- * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
+ * Copyright (c) 2020-2025, Francisco Miguel Biete Banon
  *
  * This code is released under the PostgreSQL licence, as given at
  *  http://www.postgresql.org/about/licence/
@@ -35,7 +35,6 @@
 #include "logtofile_shmem.h"
 #include "logtofile_vars.h"
 
-
 /* global settings */
 static bool PgAuditLogToFileReloadConfig = false;
 
@@ -50,7 +49,7 @@ static void pgauditlogtofile_sigterm(SIGNAL_ARGS);
  * @brief Main entry point for the background worker
  * @param arg: unused
  * @return void
-*/
+ */
 void PgAuditLogToFileMain(Datum arg)
 {
   int sleep_ms = SECS_PER_MINUTE * 1000;
@@ -123,14 +122,13 @@ void PgAuditLogToFileMain(Datum arg)
   proc_exit(0);
 }
 
-
 /* private functions */
 
 /**
  * @brief Signal handler for SIGHUP
  * @param signal_arg: signal number
  * @return void
-*/
+ */
 static void
 pgauditlogtofile_sigterm(SIGNAL_ARGS)
 {
@@ -145,7 +143,7 @@ pgauditlogtofile_sigterm(SIGNAL_ARGS)
  * @brief Signal handler for SIGTERM
  * @param signal_arg: signal number
  * @return void
-*/
+ */
 static void
 pgauditlogtofile_sighup(SIGNAL_ARGS)
 {

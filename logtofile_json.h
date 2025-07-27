@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- * logtofile_filename.c
- *      Functions to calculate the filename of the log file
+ * logtofile_json.h
+ *      Functions to create a json audit record
  *
  * Copyright (c) 2020-2025, Francisco Miguel Biete Banon
  *
@@ -9,12 +9,12 @@
  *  http://www.postgresql.org/about/licence/
  *-------------------------------------------------------------------------
  */
-#ifndef _LOGTOFILE_FILENAME_H_
-#define _LOGTOFILE_FILENAME_H_
+#ifndef _LOGTOFILE_JSON_H_
+#define _LOGTOFILE_JSON_H_
 
-#include "postgres.h"
+#include <postgres.h>
 
-extern char *PgAuditLogToFile_current_filename(void);
-extern void PgAuditLogToFile_set_next_rotation_time(void);
+/* Hook functions */
+extern void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars);
 
-#endif // _LOGTOFILE_FILENAME_H_
+#endif

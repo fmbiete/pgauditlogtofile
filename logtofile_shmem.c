@@ -3,7 +3,7 @@
  * logtofile_shmem.c
  *      Functions to manage shared memory
  *
- * Copyright (c) 2020-2024, Francisco Miguel Biete Banon
+ * Copyright (c) 2020-2025, Francisco Miguel Biete Banon
  *
  * This code is released under the PostgreSQL licence, as given at
  *  http://www.postgresql.org/about/licence/
@@ -52,6 +52,7 @@ const char *postgresConnMsg[] = {
     "connection authorized: user=%s database=%s SSL enabled (protocol=%s, cipher=%s, bits=%d, compression=%s)",
     "connection authorized: user=%s database=%s application_name=%s",
     "connection authorized: user=%s database=%s application_name=%s SSL enabled (protocol=%s, cipher=%s, bits=%d, compression=%s)",
+    "role \"%s\" does not exist",
 };
 
 /* Extracted from src/backend/po */
