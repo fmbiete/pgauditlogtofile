@@ -14,7 +14,7 @@
 #include "utils/guc.h"
 
 #ifdef PG_MODULE_MAGIC_EXT // Added in 18
-PG_MODULE_MAGIC_EXT(.name = "pgauditlogtofile", .version = "1.6");
+PG_MODULE_MAGIC_EXT(.name = "pgauditlogtofile", .version = "1.7");
 #else
 PG_MODULE_MAGIC; // For PostgreSQL versions < 18
 #endif

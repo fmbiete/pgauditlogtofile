@@ -16,5 +16,6 @@
 #include <utils/guc.h>
 
 extern bool guc_check_directory(char **newval, void **extra, GucSource source);
+extern bool guc_check_log_format(char **newval, void **extra, GucSource source);
 
 #endif

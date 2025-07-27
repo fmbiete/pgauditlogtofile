@@ -29,6 +29,7 @@ extern int guc_pgaudit_ltf_log_rotation_age;
 extern bool guc_pgaudit_ltf_log_connections;
 extern bool guc_pgaudit_ltf_log_disconnections;
 extern int guc_pgaudit_ltf_auto_close_minutes;
+extern char *guc_pgaudit_ltf_log_format;
 
 // Audit log file handler
 extern FILE *pgaudit_ltf_file_handler;

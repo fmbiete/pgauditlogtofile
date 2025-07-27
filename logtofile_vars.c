@@ -19,6 +19,7 @@ int guc_pgaudit_ltf_log_rotation_age = HOURS_PER_DAY * MINS_PER_HOUR; // Default
 bool guc_pgaudit_ltf_log_connections = false;                         // Default: off
 bool guc_pgaudit_ltf_log_disconnections = false;                      // Default: off
 int guc_pgaudit_ltf_auto_close_minutes = 0;                           // Default: off
+char *guc_pgaudit_ltf_log_format = NULL;
 
 // Audit log file handler
 FILE *pgaudit_ltf_file_handler = NULL;

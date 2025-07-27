@@ -91,6 +91,13 @@ void _PG_init(void)
       INT_MAX / MINS_PER_HOUR, PGC_SIGHUP,
       GUC_NOT_IN_SAMPLE | GUC_UNIT_MIN | GUC_SUPERUSER_ONLY, NULL, NULL, NULL);
 
+  DefineCustomStringVariable(
+      "pgaudit.log_format",
+      "Format of the audit data (csv or json)", NULL,
+      &guc_pgaudit_ltf_log_format, "csv", PGC_SIGHUP,
+      GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+      guc_check_log_format, NULL, NULL);
+
   EmitWarningsOnPlaceholders("pgauditlogtofile");
 
   /* background worker */
