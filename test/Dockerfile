@@ -21,7 +21,7 @@ USER postgres
 # Create PostgreSQL cluster
 RUN /usr/pgsql-${PG_VERSION}/bin/initdb -A trust -k /var/lib/pgsql/${PG_VERSION}/data \
   && echo "shared_preload_libraries = 'pgaudit,pgauditlogtofile'" >> /var/lib/pgsql/${PG_VERSION}/data/postgresql.conf \
-  && /usr/pgsql-${PG_VERSION}/bin/pg_ctl start -D /var/lib/pgsql/${PG_VERSION}/data \
+  && /usr/pgsql-${PG_VERSION}/bin/pg_ctl start -D /var/lib/pgsql/${PG_VERSION}/data
   
 # Enable pgaudit
 RUN psql -Xc 'create extension pgaudit' \
@@ -37,11 +37,11 @@ RUN psql -Xc 'create extension pgauditlogtofile' \
   && psql -Xc 'alter system set pgaudit.log_disconnections = on' \
   && psql -Xc 'select pg_reload_conf()'
 
-RUN psql -Xc "alter system set pgaudit.log_format = 'json'"
+RUN psql -Xc "alter system set pgaudit.log_format = 'json'" \
   && psql -Xc 'select pg_reload_conf()'
 
 RUN psql -Xc 'create database pgbench' \
-  && pgbench i pgbench \
+  && pgbench -i pgbench \
   && pgbench -c 100 -j 10 -T 60 pgbench
 
 USER root

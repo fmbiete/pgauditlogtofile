@@ -24,13 +24,22 @@ postgres=# CREATE EXTENSION pgauditlogtofile;
 ## Configuration
 
 ### pgaudit.log_format
-Format used to write the audit records. The CSV format requires a parser that support multi-lines; it is not escaped.
+Format used to write the audit records.
 
 **Scope**: System
 
 **Default**: 'csv'
 
 **Options**: csv / json
+
+**CSV Notes**: 
+- All fields are quoted and escaped when required.
+- Statement and Parameters are treated as one unique value.
+- Empty values are printed as empty without quotes.
+
+**JSON Notes**: 
+- Keys and values are quoted.
+- Values are escaped when required.
 
 ### pgaudit.log_directory
 Name of the directory where the audit file will be created.
@@ -116,8 +125,7 @@ CREATE FOREIGN TABLE pgauditlogtofile_extern (
   command text NULL,
   object_type text NULL,
   object_name text NULL,
-  "statement" text NULL,
-  "parameter" text NULL,
+  statement_with_parameters text NULL,
   ----additional fields--------
   detail text NULL,
   hint text NULL,
