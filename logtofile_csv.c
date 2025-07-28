@@ -15,7 +15,6 @@
 
 #include <access/xact.h>
 #include <miscadmin.h>
-#include <lib/stringinfo.h>
 #include <libpq/libpq-be.h>
 #include <storage/proc.h>
 #include <tcop/tcopprot.h>

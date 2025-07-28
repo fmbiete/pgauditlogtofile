@@ -13,6 +13,7 @@
 #define _LOGTOFILE_CVS_H_
 
 #include <postgres.h>
+#include <lib/stringinfo.h>
 
 extern void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars);
 

@@ -13,6 +13,7 @@
 #define _LOGTOFILE_JSON_H_
 
 #include <postgres.h>
+#include <lib/stringinfo.h>
 
 /* Hook functions */
 extern void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars);
