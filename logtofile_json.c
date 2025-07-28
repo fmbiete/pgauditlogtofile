@@ -168,7 +168,8 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
   if (application_name)
     pgauditlogtofile_append_json_key_value(buf, "custom.application_name", application_name);
 
-  appendStringInfoString(buf, "}");
+  appendStringInfoCharMacro(buf, '}');
+  appendStringInfoCharMacro(buf, '\n');
 }
 
 /* private methods */
