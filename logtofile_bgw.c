@@ -66,7 +66,7 @@ void PgAuditLogToFileMain(Datum arg)
   PgAuditLogToFileContext = AllocSetContextCreate(CurrentMemoryContext, "pgauditlogtofile loop context",
                                                   ALLOCSET_DEFAULT_MINSIZE, ALLOCSET_DEFAULT_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE);
 
-  ereport(LOG, (errmsg("pgauditlogtofile worker started")));
+  ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile worker started")));
 
   MemoryContextSwitchTo(PgAuditLogToFileContext);
 
@@ -117,7 +117,7 @@ void PgAuditLogToFileMain(Datum arg)
 
   MemoryContextReset(PgAuditLogToFileContext);
 
-  ereport(LOG, (errmsg("pgauditlogtofile worker shutting down")));
+  ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile worker shutting down")));
 
   proc_exit(0);
 }

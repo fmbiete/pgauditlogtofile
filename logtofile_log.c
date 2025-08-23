@@ -256,11 +256,9 @@ bool pgauditlogtofile_open_file(void)
   }
   else
   {
-    int save_errno = errno;
-    ereport(ERROR,
+    ereport(LOG_SERVER_ONLY,
             (errcode_for_file_access(),
              errmsg("could not open log file \"%s\": %m", pgaudit_ltf_shm->filename)));
-    errno = save_errno;
   }
 
   return opened;
@@ -297,12 +295,10 @@ bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
 
   if (rc != buf.len)
   {
-    int save_errno = errno;
-    ereport(ERROR,
+    ereport(LOG_SERVER_ONLY,
             (errcode_for_file_access(),
              errmsg("could not write audit log file \"%s\": %m", filename_in_use)));
     pgauditlogtofile_close_file();
-    errno = save_errno;
   }
 
   return rc == buf.len;
