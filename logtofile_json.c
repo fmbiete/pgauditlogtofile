@@ -186,32 +186,44 @@ pgauditlogtofile_pgaudit2json(StringInfo buf, char *line)
 {
   char *token;
 
+  // AUDIT_TYPE
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_json_key_value(buf, "custom.audit_type", token);
 
+  // STATEMENT_ID
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_json_key_value(buf, "custom.statement_id", token);
 
+  // SUBSTATEMENT_ID
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_json_key_value(buf, "custom.substatement_id", token);
 
+  // CLASS
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_json_key_value(buf, "custom.class", token);
 
+  // COMMAND
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_json_key_value(buf, "custom.command", token);
 
+  // OBJECT_TYPE
+  token = strsep(&line, ",");
+  if (token)
+    pgauditlogtofile_append_json_key_value(buf, "custom.object_type", token);
+
+  // OBJECT_NAME
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_json_key_value(buf, "custom.object_name", token);
 
-  if (line)
-    pgauditlogtofile_append_json_key_value(buf, "content", line + 1);
+  // Statement and parameters as one field
+  if (line && *line != '\0')
+    pgauditlogtofile_append_json_key_value(buf, "content", line + (*line == ',' ? 1 : 0));
 }
 
 /*

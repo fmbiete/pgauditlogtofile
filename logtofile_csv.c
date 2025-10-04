@@ -233,40 +233,52 @@ pgauditlogtofile_pgaudit_escape(StringInfo buf, char *line)
 {
   char *token;
 
+  // AUDIT_TYPE
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_csv_value(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
+  // STATEMENT_ID
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_csv_value(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
+  // SUBSTATEMENT_ID
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_csv_value(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
+  // CLASS
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_csv_value(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
+  // COMMAND
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_csv_value(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
+  // OBJECT_TYPE
+  token = strsep(&line, ",");
+  if (token)
+    pgauditlogtofile_append_csv_value(buf, token);
+  appendStringInfoCharMacro(buf, ',');
+
+  // OBJECT_NAME
   token = strsep(&line, ",");
   if (token)
     pgauditlogtofile_append_csv_value(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
   /*
-   * writes as one filed the statement and the params, but the statement and parameters
+   * writes as one field the statement and the params, but the statement and parameters
    * can contain comma we cannot split them easily
    * */
-  if (line)
-    pgauditlogtofile_append_csv_value(buf, line + 1);
+  if (line && *line != '\0')
+    pgauditlogtofile_append_csv_value(buf, line + (*line == ',' ? 1 : 0));
 }
