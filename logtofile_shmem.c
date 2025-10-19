@@ -53,6 +53,7 @@ const char *postgresConnMsg[] = {
     "connection authorized: user=%s database=%s application_name=%s",
     "connection authorized: user=%s database=%s application_name=%s SSL enabled (protocol=%s, cipher=%s, bits=%d, compression=%s)",
     "role \"%s\" does not exist",
+    "connection ready: setup total=%.3f ms, fork=%.3f ms, authentication=%.3f ms",
 };
 
 /* Extracted from src/backend/po */
