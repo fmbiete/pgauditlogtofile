@@ -14,7 +14,6 @@
 
 #include <postgres.h>
 
-extern char *PgAuditLogToFile_format_now_timestamp(void);
 extern char *PgAuditLogToFile_format_now_timestamp_millis(void);
 
 #endif

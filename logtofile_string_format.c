@@ -38,29 +38,6 @@
 #define FORMATTED_TS_LEN 128
 
 /**
- * @brief Formats the session start time
- * @param void
- * @return void
- */
-char *PgAuditLogToFile_format_now_timestamp(void)
-{
-
-  char *formatted_start_time;
-
-  formatted_start_time = palloc(FORMATTED_TS_LEN * sizeof(char));
-
-  /*
-   * Note: we expect that guc.c will ensure that log_timezone is set up (at
-   * least with a minimal GMT value) before Log_line_prefix can become
-   * nonempty or CSV mode can be selected.
-   */
-  pg_strftime(formatted_start_time, FORMATTED_TS_LEN, "%Y-%m-%d %H:%M:%S %Z",
-              pg_localtime((pg_time_t *)&MyStartTime, log_timezone));
-
-  return formatted_start_time;
-}
-
-/**
  * @brief Formats the record time
  * @param void
  * @return void
