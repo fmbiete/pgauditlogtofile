@@ -46,7 +46,7 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
 
   /* timestamp with milliseconds */
 
-  formatted_log_time = PgAuditLogToFile_format_now_timestamp();
+  formatted_log_time = PgAuditLogToFile_format_now_timestamp_millis();
   pgauditlogtofile_append_csv_value(buf, formatted_log_time);
   pfree(formatted_log_time);
   appendStringInfoCharMacro(buf, ',');
