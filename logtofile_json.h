@@ -3,7 +3,7 @@
  * logtofile_json.h
  *      Functions to create a json audit record
  *
- * Copyright (c) 2020-2025, Francisco Miguel Biete Banon
+ * Copyright (c) 2020-2026, Francisco Miguel Biete Banon
  *
  * This code is released under the PostgreSQL licence, as given at
  *  http://www.postgresql.org/about/licence/
