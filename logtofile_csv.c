@@ -82,17 +82,12 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
   /* PS display */
   if (MyProcPort)
   {
-    StringInfoData msgbuf;
     const char *psdisp;
     int displen;
 
-    initStringInfo(&msgbuf);
-
     psdisp = get_ps_display(&displen);
-    appendBinaryStringInfo(&msgbuf, psdisp, displen);
-    pgauditlogtofile_append_csv_value(buf, msgbuf.data);
-
-    pfree(msgbuf.data);
+    if (psdisp && displen > 0)
+      pgauditlogtofile_append_csv_value(buf, psdisp);
   }
   appendStringInfoCharMacro(buf, ',');
 
@@ -162,17 +157,15 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
   /* file error location */
   if (Log_error_verbosity >= PGERROR_VERBOSE)
   {
-    StringInfoData msgbuf;
-
-    initStringInfo(&msgbuf);
+    size_t needed = strlen(edata->funcname ?: "") + strlen(edata->filename ?: "") + FORMATTED_NUMLINE_LEN;
+    char *msgbuf = palloc(needed);
 
     if (edata->funcname && edata->filename)
-      appendStringInfo(&msgbuf, "%s, %s:%d", edata->funcname, edata->filename,
-                       edata->lineno);
+      pg_snprintf(msgbuf, needed, "%s, %s:%d", edata->funcname, edata->filename, edata->lineno);
     else if (edata->filename)
-      appendStringInfo(&msgbuf, "%s:%d", edata->filename, edata->lineno);
-    pgauditlogtofile_append_csv_value(buf, msgbuf.data);
-    pfree(msgbuf.data);
+      pg_snprintf(msgbuf, needed, "%s:%d", edata->filename, edata->lineno);
+    pgauditlogtofile_append_csv_value(buf, msgbuf);
+    pfree(msgbuf);
   }
   appendStringInfoCharMacro(buf, ',');
 

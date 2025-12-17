@@ -272,6 +272,7 @@ bool pgauditlogtofile_open_file(void)
 bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
 {
   StringInfoData buf;
+  bool success = false;
   int rc = 0;
 
   initStringInfo(&buf);
@@ -287,19 +288,28 @@ bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
 
   if (pgaudit_ltf_file_handler)
   {
-    fseek(pgaudit_ltf_file_handler, 0L, SEEK_END);
-    rc = fwrite(buf.data, 1, buf.len, pgaudit_ltf_file_handler);
-    pfree(buf.data);
-    fflush(pgaudit_ltf_file_handler);
+    /* multi-process write, move to end*/
+    if (fseek(pgaudit_ltf_file_handler, 0L, SEEK_END) == 0)
+    {
+      rc = fwrite(buf.data, 1, buf.len, pgaudit_ltf_file_handler);
+      if (rc == buf.len && fflush(pgaudit_ltf_file_handler) == 0)
+        success = true;
+      else
+      {
+        ereport(LOG_SERVER_ONLY,
+                (errcode_for_file_access(),
+                 errmsg("could not write audit log file \"%s\": %m", filename_in_use)));
+        pgauditlogtofile_close_file();
+      }
+    }
+    else
+    {
+      ereport(LOG_SERVER_ONLY,
+              (errcode_for_file_access(),
+               errmsg("could not seek to end of audit log file \"%s\": %m", filename_in_use)));
+      pgauditlogtofile_close_file();
+    }
   }
 
-  if (rc != buf.len)
-  {
-    ereport(LOG_SERVER_ONLY,
-            (errcode_for_file_access(),
-             errmsg("could not write audit log file \"%s\": %m", filename_in_use)));
-    pgauditlogtofile_close_file();
-  }
-
-  return rc == buf.len;
+  return success;
 }

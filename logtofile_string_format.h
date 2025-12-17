@@ -14,6 +14,8 @@
 
 #include <postgres.h>
 
+#define FORMATTED_NUMLINE_LEN 32
+
 extern char *PgAuditLogToFile_format_now_timestamp_millis(void);
 
 #endif

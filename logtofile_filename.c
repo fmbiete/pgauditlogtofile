@@ -79,14 +79,15 @@ pgauditlogtofile_tm2filename(const struct pg_tm *tm)
   char *filename = NULL;
   int len;
 
-  filename = palloc(MAXPGPATH * sizeof(char *));
-  if (filename != NULL)
-  {
-    memset(filename, 0, sizeof(char) * MAXPGPATH);
-    snprintf(filename, MAXPGPATH, "%s/", guc_pgaudit_ltf_log_directory);
-    len = strlen(filename);
-    pg_strftime(filename + len, MAXPGPATH - len, guc_pgaudit_ltf_log_filename, tm);
-  }
+  filename = palloc(MAXPGPATH);
+
+  /* Write directory prefix */
+  pg_snprintf(filename, MAXPGPATH, "%s/", guc_pgaudit_ltf_log_directory);
+
+  len = strlen(filename);
+
+  /* Append formatted timestamp-based filename */
+  pg_strftime(filename + len, MAXPGPATH - len, guc_pgaudit_ltf_log_filename, tm);
 
   return filename;
 }

@@ -77,18 +77,12 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
   /* PS display */
   if (MyProcPort)
   {
-    StringInfoData msgbuf;
     const char *psdisp;
     int displen;
 
-    initStringInfo(&msgbuf);
-
     psdisp = get_ps_display(&displen);
-    appendBinaryStringInfo(&msgbuf, psdisp, displen);
-
-    pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", msgbuf.data);
-
-    pfree(msgbuf.data);
+    if (psdisp && displen > 0)
+      pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", psdisp);
   }
 
   /* Virtual transaction id */
@@ -156,8 +150,8 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
   {
     if (edata->filename)
     {
-      char buffNum[20];
-      sprintf(buffNum, "%d", edata->lineno);
+      char buffNum[FORMATTED_NUMLINE_LEN];
+      pg_snprintf(buffNum, sizeof(buffNum), "%d", edata->lineno);
 
       pgauditlogtofile_append_json_key_value(buf, "custom.source_filename", edata->filename);
       pgauditlogtofile_append_json_key_value(buf, "custom.source_linenum", buffNum);
