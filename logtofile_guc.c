@@ -24,7 +24,7 @@
  * @param source: source
  * @return bool: true if path is valid
  */
-bool guc_check_directory(char **newval, void **extra, GucSource source)
+bool PgAuditLogToFile_guc_check_directory(char **newval, void **extra, GucSource source)
 {
   /*
    * Since canonicalize_path never enlarges the string, we can just modify
@@ -41,7 +41,7 @@ bool guc_check_directory(char **newval, void **extra, GucSource source)
  * @param source: source
  * @return bool: true if value is csv or json
  */
-bool guc_check_log_format(char **newval, void **extra, GucSource source)
+bool PgAuditLogToFile_guc_check_log_format(char **newval, void **extra, GucSource source)
 {
   char *rawstring;
 
@@ -61,4 +61,17 @@ bool guc_check_log_format(char **newval, void **extra, GucSource source)
 
   pfree(rawstring);
   return false;
+}
+
+/**
+ * @brief GUC Callback pgaudit.log_file_mode
+ * @param void
+ * @return const char *: file mode
+ */
+const char *PgAuditLogToFile_guc_show_file_mode(void)
+{
+  static char buf[12];
+
+  snprintf(buf, sizeof(buf), "%04o", guc_pgaudit_ltf_log_file_mode);
+  return buf;
 }

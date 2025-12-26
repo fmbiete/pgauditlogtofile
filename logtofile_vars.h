@@ -25,6 +25,7 @@
 // Guc
 extern char *guc_pgaudit_ltf_log_directory;
 extern char *guc_pgaudit_ltf_log_filename;
+extern int guc_pgaudit_ltf_log_file_mode;
 extern int guc_pgaudit_ltf_log_rotation_age;
 extern bool guc_pgaudit_ltf_log_connections;
 extern bool guc_pgaudit_ltf_log_disconnections;

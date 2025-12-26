@@ -55,48 +55,66 @@ void _PG_init(void)
   DefineCustomStringVariable(
       "pgaudit.log_directory",
       "Directory where to spool log data", NULL,
-      &guc_pgaudit_ltf_log_directory, "log", PGC_SIGHUP,
-      GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
-      guc_check_directory, NULL, NULL);
+      &guc_pgaudit_ltf_log_directory,
+      "log",
+      PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+      PgAuditLogToFile_guc_check_directory, NULL, NULL);
 
   DefineCustomStringVariable(
       "pgaudit.log_filename",
-      "Filename with time patterns (up to minutes) where to spool audit data",
-      NULL, &guc_pgaudit_ltf_log_filename, "audit-%Y%m%d_%H%M.log", PGC_SIGHUP,
-      GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY, NULL, NULL, NULL);
+      "Filename with time patterns (up to minutes) where to spool audit data", NULL,
+      &guc_pgaudit_ltf_log_filename,
+      "audit-%Y%m%d_%H%M.log",
+      PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+      NULL, NULL, NULL);
+
+  DefineCustomIntVariable(
+      "pgaudit.log_file_mode",
+      "Sets the file permissions for log files", NULL,
+      &guc_pgaudit_ltf_log_file_mode,
+      0600, 0000, 0666,
+      PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+      NULL, NULL, PgAuditLogToFile_guc_show_file_mode);
 
   DefineCustomIntVariable(
       "pgaudit.log_rotation_age",
       "Automatic spool file rotation will occur after N minutes", NULL,
-      &guc_pgaudit_ltf_log_rotation_age, HOURS_PER_DAY * MINS_PER_HOUR, 1,
-      INT_MAX / SECS_PER_MINUTE, PGC_SIGHUP,
-      GUC_NOT_IN_SAMPLE | GUC_UNIT_MIN | GUC_SUPERUSER_ONLY, NULL, NULL, NULL);
+      &guc_pgaudit_ltf_log_rotation_age,
+      HOURS_PER_DAY * MINS_PER_HOUR, 1, INT_MAX / SECS_PER_MINUTE,
+      PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_UNIT_MIN | GUC_SUPERUSER_ONLY,
+      NULL, NULL, NULL);
 
   DefineCustomBoolVariable(
       "pgaudit.log_connections",
       "Intercepts log_connections messages", NULL,
-      &guc_pgaudit_ltf_log_connections, false, PGC_SIGHUP,
-      GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY, NULL, NULL, NULL);
+      &guc_pgaudit_ltf_log_connections,
+      false,
+      PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+      NULL, NULL, NULL);
 
   DefineCustomBoolVariable(
       "pgaudit.log_disconnections",
       "Intercepts log_disconnections messages", NULL,
-      &guc_pgaudit_ltf_log_disconnections, false, PGC_SIGHUP,
-      GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY, NULL, NULL, NULL);
+      &guc_pgaudit_ltf_log_disconnections,
+      false,
+      PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+      NULL, NULL, NULL);
 
   DefineCustomIntVariable(
       "pgaudit.log_autoclose_minutes",
       "Automatic spool file closure by backend after N minutes of inactivity", NULL,
-      &guc_pgaudit_ltf_auto_close_minutes, 0, 0,
-      INT_MAX / MINS_PER_HOUR, PGC_SIGHUP,
+      &guc_pgaudit_ltf_auto_close_minutes,
+      0, 0, INT_MAX / MINS_PER_HOUR,
+      PGC_SIGHUP,
       GUC_NOT_IN_SAMPLE | GUC_UNIT_MIN | GUC_SUPERUSER_ONLY, NULL, NULL, NULL);
 
   DefineCustomStringVariable(
       "pgaudit.log_format",
       "Format of the audit data (csv or json)", NULL,
-      &guc_pgaudit_ltf_log_format, "csv", PGC_SIGHUP,
-      GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
-      guc_check_log_format, NULL, NULL);
+      &guc_pgaudit_ltf_log_format,
+      "csv",
+      PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+      PgAuditLogToFile_guc_check_log_format, NULL, NULL);
 
   EmitWarningsOnPlaceholders("pgauditlogtofile");
 

@@ -14,6 +14,7 @@
 // Guc
 char *guc_pgaudit_ltf_log_directory = NULL;
 char *guc_pgaudit_ltf_log_filename = NULL;
+int guc_pgaudit_ltf_log_file_mode = 0600;
 char *guc_pgaudit_log_last_rotation = NULL;
 int guc_pgaudit_ltf_log_rotation_age = HOURS_PER_DAY * MINS_PER_HOUR; // Default: 1 day
 bool guc_pgaudit_ltf_log_connections = false;                         // Default: off

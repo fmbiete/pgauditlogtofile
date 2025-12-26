@@ -61,6 +61,15 @@ This variable can contain time patterns up to minute to allow automatic rotation
 
 Empty or NULL will disable the extension and the audit logging will be done to PostgreSQL server logger.
 
+### pgaudit.log_file_mode
+File permissions of the audit log files created.
+
+**Scope**: System
+
+**Default**: '0600'
+
+Permission changes are only applied after file rotation. Files cannot be marked as executable.
+
 ### pgaudit.log_rotation_age
 Number of minutes after which the audit file will be rotated.
 

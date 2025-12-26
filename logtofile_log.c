@@ -234,11 +234,11 @@ bool pgauditlogtofile_open_file(void)
   (void)MakePGDirectory(guc_pgaudit_ltf_log_directory);
 
   /*
-   * Note we do not let Log_file_mode disable IWUSR, since we certainly want
+   * Note we do not let guc_pgaudit_ltf_log_file_mode disable IWUSR, since we certainly want
    * to be able to write the files ourselves.
    */
   oumask = umask(
-      (mode_t)((~(Log_file_mode | S_IWUSR)) & (S_IRWXU | S_IRWXG | S_IRWXO)));
+      (mode_t)((~(guc_pgaudit_ltf_log_file_mode | S_IWUSR)) & (S_IRWXU | S_IRWXG | S_IRWXO)));
   pgaudit_ltf_file_handler = fopen(pgaudit_ltf_shm->filename, "a");
   umask(oumask);
 
