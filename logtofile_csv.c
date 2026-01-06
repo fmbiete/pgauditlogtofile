@@ -69,7 +69,7 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
   if (MyProcPort && MyProcPort->remote_host)
   {
     if (MyProcPort->remote_port && MyProcPort->remote_port[0] != '\0')
-      pgauditlogtofile_append_csv_fmt(buf, "%s:%s", MyProcPort->remote_host, MyProcPort->remote_host);
+      pgauditlogtofile_append_csv_fmt(buf, "%s:%s", MyProcPort->remote_host, MyProcPort->remote_port);
     else
       pgauditlogtofile_append_csv_value(buf, MyProcPort->remote_host);
   }
