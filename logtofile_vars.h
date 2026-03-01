@@ -79,6 +79,7 @@ typedef struct pgAuditLogToFileShm
   size_t num_prefixes_disconnection;
   char filename[MAXPGPATH];
   pg_time_t next_rotation_time;
+  pg_atomic_uint32 rotation_generation;
 } PgAuditLogToFileShm;
 
 // Shared Memory

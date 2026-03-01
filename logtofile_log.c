@@ -49,6 +49,7 @@
 /* variables to use only in this unit */
 static char filename_in_use[MAXPGPATH];
 static int autoclose_thread_status_debug = 0; // 0: new proc, 1: th running, 2: th running sleep used, 3: th closed
+static uint32 pgaudit_ltf_local_rotation_generation = 0;
 
 /* forward declaration private functions */
 void pgauditlogtofile_close_file(void);
@@ -127,23 +128,27 @@ bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
 {
   bool rc;
   char shm_filename[MAXPGPATH];
+  uint32 current_generation;
 
-  LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
-  strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
-  LWLockRelease(pgaudit_ltf_shm->lock);
-
-  ereport(DEBUG5, (errmsg("pgauditlogtofile record audit in %s (shm %s)",
-                          filename_in_use, pgaudit_ltf_shm->filename)));
-                          filename_in_use, shm_filename)));
-  /* do we need to rotate? */
-  if (strlen(pgaudit_ltf_shm->filename) > 0 && strcmp(filename_in_use, pgaudit_ltf_shm->filename) != 0)
-  if (strlen(shm_filename) > 0 && strcmp(filename_in_use, shm_filename) != 0)
+  current_generation = pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation);
+  if (current_generation != pgaudit_ltf_local_rotation_generation || strlen(filename_in_use) == 0)
   {
-    ereport(DEBUG3, (
-                        errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
-                               pgaudit_ltf_shm->filename, filename_in_use)));
-                               shm_filename, filename_in_use)));
-    pgauditlogtofile_close_file();
+    LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
+    strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
+    LWLockRelease(pgaudit_ltf_shm->lock);
+
+    pgaudit_ltf_local_rotation_generation = current_generation;
+
+    ereport(DEBUG5, (errmsg("pgauditlogtofile record audit in %s (shm %s)",
+                            filename_in_use, shm_filename)));
+    /* do we need to rotate? */
+    if (strlen(shm_filename) > 0 && strcmp(filename_in_use, shm_filename) != 0)
+    {
+      ereport(DEBUG3, (
+                          errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
+                                 shm_filename, filename_in_use)));
+      pgauditlogtofile_close_file();
+    }
   }
 
   if (!pgauditlogtofile_is_open_file() && !pgauditlogtofile_open_file())
@@ -240,7 +245,6 @@ bool pgauditlogtofile_open_file(void)
   LWLockRelease(pgaudit_ltf_shm->lock);
 
   // if the filename is empty, we short-circuit
-  if (strlen(pgaudit_ltf_shm->filename) == 0)
   if (strlen(shm_filename) == 0)
     return opened;
 
@@ -253,7 +257,6 @@ bool pgauditlogtofile_open_file(void)
    */
   oumask = umask(
       (mode_t)((~(guc_pgaudit_ltf_log_file_mode | S_IWUSR)) & (S_IRWXU | S_IRWXG | S_IRWXO)));
-  pgaudit_ltf_file_handler = fopen(pgaudit_ltf_shm->filename, "a");
   pgaudit_ltf_file_handler = fopen(shm_filename, "a");
   umask(oumask);
 
@@ -267,14 +270,12 @@ bool pgauditlogtofile_open_file(void)
     _setmode(_fileno(file_handler), _O_TEXT);
 #endif
     // File open, we update the filename we are using
-    strcpy(filename_in_use, pgaudit_ltf_shm->filename);
     strcpy(filename_in_use, shm_filename);
   }
   else
   {
     ereport(LOG_SERVER_ONLY,
             (errcode_for_file_access(),
-             errmsg("could not open log file \"%s\": %m", pgaudit_ltf_shm->filename)));
              errmsg("could not open log file \"%s\": %m", shm_filename)));
   }
 
