@@ -126,15 +126,23 @@ bool pgauditlogtofile_is_enabled(void)
 bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
 {
   bool rc;
+  char shm_filename[MAXPGPATH];
+
+  LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
+  strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
+  LWLockRelease(pgaudit_ltf_shm->lock);
 
   ereport(DEBUG5, (errmsg("pgauditlogtofile record audit in %s (shm %s)",
                           filename_in_use, pgaudit_ltf_shm->filename)));
+                          filename_in_use, shm_filename)));
   /* do we need to rotate? */
   if (strlen(pgaudit_ltf_shm->filename) > 0 && strcmp(filename_in_use, pgaudit_ltf_shm->filename) != 0)
+  if (strlen(shm_filename) > 0 && strcmp(filename_in_use, shm_filename) != 0)
   {
     ereport(DEBUG3, (
                         errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
                                pgaudit_ltf_shm->filename, filename_in_use)));
+                               shm_filename, filename_in_use)));
     pgauditlogtofile_close_file();
   }
 
@@ -225,9 +233,15 @@ bool pgauditlogtofile_open_file(void)
 {
   mode_t oumask;
   bool opened = false;
+  char shm_filename[MAXPGPATH];
+
+  LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
+  strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
+  LWLockRelease(pgaudit_ltf_shm->lock);
 
   // if the filename is empty, we short-circuit
   if (strlen(pgaudit_ltf_shm->filename) == 0)
+  if (strlen(shm_filename) == 0)
     return opened;
 
   /* Create spool directory if not present; ignore errors */
@@ -240,6 +254,7 @@ bool pgauditlogtofile_open_file(void)
   oumask = umask(
       (mode_t)((~(guc_pgaudit_ltf_log_file_mode | S_IWUSR)) & (S_IRWXU | S_IRWXG | S_IRWXO)));
   pgaudit_ltf_file_handler = fopen(pgaudit_ltf_shm->filename, "a");
+  pgaudit_ltf_file_handler = fopen(shm_filename, "a");
   umask(oumask);
 
   if (pgaudit_ltf_file_handler)
@@ -253,12 +268,14 @@ bool pgauditlogtofile_open_file(void)
 #endif
     // File open, we update the filename we are using
     strcpy(filename_in_use, pgaudit_ltf_shm->filename);
+    strcpy(filename_in_use, shm_filename);
   }
   else
   {
     ereport(LOG_SERVER_ONLY,
             (errcode_for_file_access(),
              errmsg("could not open log file \"%s\": %m", pgaudit_ltf_shm->filename)));
+             errmsg("could not open log file \"%s\": %m", shm_filename)));
   }
 
   return opened;
@@ -310,6 +327,7 @@ bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
       pgauditlogtofile_close_file();
     }
   }
+  pfree(buf.data);
 
   return success;
 }
