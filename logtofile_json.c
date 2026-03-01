@@ -12,6 +12,7 @@
 #include "logtofile_json.h"
 
 #include "logtofile_string_format.h"
+#include "logtofile_vars.h"
 
 #include <access/xact.h>
 #include <miscadmin.h>
@@ -20,6 +21,7 @@
 #include <tcop/tcopprot.h>
 #include <utils/json.h>
 #include <utils/ps_status.h>
+#include <utils/timestamp.h>
 
 #include <stdarg.h>
 
@@ -163,6 +165,16 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
   /* application name */
   if (application_name)
     pgauditlogtofile_append_json_key_value(buf, "custom.application_name", application_name);
+
+  /* execution time */
+  if (guc_pgaudit_ltf_log_execution_time)
+  {
+    long secs;
+    int microsecs;
+
+    TimestampDifference(pgaudit_ltf_statement_start_time, pgaudit_ltf_statement_end_time, &secs, &microsecs);
+    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_time", "%ld.%06d", secs, microsecs);
+  }
 
   appendStringInfoCharMacro(buf, '}');
   appendStringInfoCharMacro(buf, '\n');

@@ -21,6 +21,7 @@ bool guc_pgaudit_ltf_log_connections = false;                         // Default
 bool guc_pgaudit_ltf_log_disconnections = false;                      // Default: off
 int guc_pgaudit_ltf_auto_close_minutes = 0;                           // Default: off
 char *guc_pgaudit_ltf_log_format = NULL;
+bool guc_pgaudit_ltf_log_execution_time = false; // Default: off
 
 // Audit log file handler
 FILE *pgaudit_ltf_file_handler = NULL;
@@ -31,8 +32,16 @@ pthread_t pgaudit_ltf_autoclose_thread;
 pthread_attr_t pgaudit_ltf_autoclose_thread_attr;
 TimestampTz pgaudit_ltf_autoclose_active_ts;
 
+// Statement time measurement
+TimestampTz pgaudit_ltf_statement_start_time;
+TimestampTz pgaudit_ltf_statement_end_time;
+
 // Hook log
 emit_log_hook_type pgaudit_ltf_prev_emit_log_hook = NULL;
+
+// Executor Hook
+ExecutorStart_hook_type pgaudit_ltf_prev_ExecutorStart = NULL;
+ExecutorEnd_hook_type pgaudit_ltf_prev_ExecutorEnd = NULL;
 
 // Shared memory
 PgAuditLogToFileShm *pgaudit_ltf_shm = NULL;

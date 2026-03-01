@@ -14,11 +14,13 @@
 
 #include <postgres.h>
 #include <datatype/timestamp.h>
+#include <executor/executor.h>
 #include <miscadmin.h>
 #include <pgtime.h>
 #include <port/atomics.h>
 #include <storage/ipc.h>
 #include <storage/lwlock.h>
+#include <utils/timestamp.h>
 
 #include <pthread.h>
 
@@ -31,6 +33,7 @@ extern bool guc_pgaudit_ltf_log_connections;
 extern bool guc_pgaudit_ltf_log_disconnections;
 extern int guc_pgaudit_ltf_auto_close_minutes;
 extern char *guc_pgaudit_ltf_log_format;
+extern bool guc_pgaudit_ltf_log_execution_time;
 
 // Audit log file handler
 extern FILE *pgaudit_ltf_file_handler;
@@ -41,8 +44,16 @@ extern pthread_t pgaudit_ltf_autoclose_thread;
 extern pthread_attr_t pgaudit_ltf_autoclose_thread_attr;
 extern Timestamp pgaudit_ltf_autoclose_active_ts;
 
+// Statement time measurement
+extern TimestampTz pgaudit_ltf_statement_start_time;
+extern TimestampTz pgaudit_ltf_statement_end_time;
+
 // Hook log
 extern emit_log_hook_type pgaudit_ltf_prev_emit_log_hook;
+
+// Executor Hook
+extern ExecutorStart_hook_type pgaudit_ltf_prev_ExecutorStart;
+extern ExecutorEnd_hook_type pgaudit_ltf_prev_ExecutorEnd;
 
 // Shared Memory types
 typedef struct PgAuditLogToFilePrefix

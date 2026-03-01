@@ -108,6 +108,13 @@ _This features creates a background thread that will sleep in the background and
 
 **Default**: 0
 
+### pgaudit.log_execution_time
+Measures the execution time of each statement audited.
+
+**Scope**: System
+
+**Default**: off
+
 
 
 ### pgAudit Log To File - Record format

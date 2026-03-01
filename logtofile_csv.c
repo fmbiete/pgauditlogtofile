@@ -12,6 +12,7 @@
 #include "logtofile_csv.h"
 
 #include "logtofile_string_format.h"
+#include "logtofile_vars.h"
 
 #include <access/xact.h>
 #include <miscadmin.h>
@@ -20,6 +21,7 @@
 #include <tcop/tcopprot.h>
 #include <utils/json.h>
 #include <utils/ps_status.h>
+#include <utils/timestamp.h>
 
 #include <stdarg.h>
 
@@ -172,6 +174,17 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
   /* application name */
   if (application_name)
     pgauditlogtofile_append_csv_value(buf, application_name);
+  appendStringInfoCharMacro(buf, ',');
+
+  /* execution time */
+  if (guc_pgaudit_ltf_log_execution_time)
+  {
+    long secs;
+    int microsecs;
+
+    TimestampDifference(pgaudit_ltf_statement_start_time, pgaudit_ltf_statement_end_time, &secs, &microsecs);
+    pgauditlogtofile_append_csv_fmt(buf, "%ld.%06d", secs, microsecs);
+  }
 
   appendStringInfoCharMacro(buf, '\n');
 }
