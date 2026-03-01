@@ -111,7 +111,7 @@ _This features creates a background thread that will sleep in the background and
 ### pgaudit.log_execution_time
 Measures the execution time of each statement audited.
 
-**Scope**: System
+**Scope**: System [requires a restart]
 
 **Default**: off
 
@@ -152,7 +152,8 @@ CREATE FOREIGN TABLE pgauditlogtofile_extern (
   cursor_pos int4 NULL,
   function_name text NULL,
   filename_linenum text NULL,
-  application_name text NULL
+  application_name text NULL,
+  execution_time double NULL
 )
 SERVER your_server
 OPTIONS (filename 'audit_log.csv', format 'csv');
