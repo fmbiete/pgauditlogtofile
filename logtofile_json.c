@@ -169,11 +169,21 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
   /* execution time */
   if (guc_pgaudit_ltf_log_execution_time)
   {
-    long secs;
-    int microsecs;
+    double total_time;
+    instr_time duration = pgaudit_ltf_statement_end_time;
+    INSTR_TIME_SUBTRACT(duration, pgaudit_ltf_statement_start_time);
+    total_time = INSTR_TIME_GET_DOUBLE(duration);
+    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_time", "%.9f", total_time);
+  }
 
-    TimestampDifference(pgaudit_ltf_statement_start_time, pgaudit_ltf_statement_end_time, &secs, &microsecs);
-    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_time", "%ld.%06d", secs, microsecs);
+  /* memory usage */
+  if (guc_pgaudit_ltf_log_execution_memory)
+  {
+    Size memory_usage = pgaudit_ltf_statement_memory_end - pgaudit_ltf_statement_memory_start;
+    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.start", "%ld", pgaudit_ltf_statement_memory_start);
+    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.end", "%ld", pgaudit_ltf_statement_memory_end);
+    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.peak", "%ld", pgaudit_ltf_statement_memory_peak);
+    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.delta", "%ld", memory_usage < 0 ? 0 : memory_usage);
   }
 
   appendStringInfoCharMacro(buf, '}');

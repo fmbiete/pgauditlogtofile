@@ -13,7 +13,7 @@
 
 #include "logtofile_bgw.h"
 #include "logtofile_connect.h"
-#include "logtofile_execution.h"
+#include "logtofile_execution_hook.h"
 #include "logtofile_guc.h"
 #include "logtofile_log.h"
 #include "logtofile_shmem.h"
@@ -125,6 +125,14 @@ void _PG_init(void)
       PGC_POSTMASTER, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
       NULL, NULL, NULL);
 
+  DefineCustomBoolVariable(
+      "pgaudit.log_execution_memory",
+      "Logs the memory usage of each statement.", NULL,
+      &guc_pgaudit_ltf_log_execution_memory,
+      false,
+      PGC_POSTMASTER, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+      NULL, NULL, NULL);
+
   EmitWarningsOnPlaceholders("pgauditlogtofile");
 
   /* background worker */
@@ -140,13 +148,15 @@ void _PG_init(void)
 
   RegisterBackgroundWorker(&worker);
 
-  /* Executor hooks for execution time measurement */
-  if (guc_pgaudit_ltf_log_execution_time)
+  /* Executor hooks for execution measurement */
+  if (guc_pgaudit_ltf_log_execution_time || guc_pgaudit_ltf_log_execution_memory)
   {
     pgaudit_ltf_prev_ExecutorStart = ExecutorStart_hook;
-    ExecutorStart_hook = PgAuditLogToFile_ExecutorStart;
+    ExecutorStart_hook = PgAuditLogToFile_ExecutorStart_Hook;
     pgaudit_ltf_prev_ExecutorEnd = ExecutorEnd_hook;
-    ExecutorEnd_hook = PgAuditLogToFile_ExecutorEnd;
+    ExecutorEnd_hook = PgAuditLogToFile_ExecutorEnd_Hook;
+    pgaudit_ltf_prev_ExecutorRun = ExecutorRun_hook;
+    ExecutorRun_hook = PgAuditLogToFile_ExecutorRun_Hook;
   }
 
 /* backend hooks */
@@ -174,8 +184,8 @@ void _PG_fini(void)
   emit_log_hook = pgaudit_ltf_prev_emit_log_hook;
   shmem_startup_hook = pgaudit_ltf_prev_shmem_startup_hook;
 
-  /* Executor hooks for execution time measurement */
-  if (guc_pgaudit_ltf_log_execution_time)
+  /* Executor hooks for execution measurement */
+  if (guc_pgaudit_ltf_log_execution_time || guc_pgaudit_ltf_log_execution_memory)
   {
     ExecutorStart_hook = pgaudit_ltf_prev_ExecutorStart;
     ExecutorEnd_hook = pgaudit_ltf_prev_ExecutorEnd;

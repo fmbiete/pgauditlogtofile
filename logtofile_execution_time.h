@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- * logtofile_execution.h
- *      Functions to add Execution Hooks
+ * logtofile_execution_time.h
+ *      Partial hooks to measure execution time
  *
  * Copyright (c) 2026, Francisco Miguel Biete Banon
  *
@@ -9,13 +9,13 @@
  *  http://www.postgresql.org/about/licence/
  *-------------------------------------------------------------------------
  */
-#ifndef _LOGTOFILE_EXECUTION_H_
-#define _LOGTOFILE_EXECUTION_H_
+#ifndef _LOGTOFILE_EXECUTION_TIME_H_
+#define _LOGTOFILE_EXECUTION_TIME_H_
 
 #include <postgres.h>
 #include <executor/executor.h>
 
-extern void PgAuditLogToFile_ExecutorStart(QueryDesc *queryDesc, int eflags);
-extern void PgAuditLogToFile_ExecutorEnd(QueryDesc *queryDesc);
+extern void PgAuditLogToFile_ExecutorStart_Time(QueryDesc *queryDesc, int eflags);
+extern void PgAuditLogToFile_ExecutorEnd_Time(QueryDesc *queryDesc);
 
 #endif

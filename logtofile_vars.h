@@ -18,6 +18,7 @@
 #include <miscadmin.h>
 #include <pgtime.h>
 #include <port/atomics.h>
+#include <portability/instr_time.h>
 #include <storage/ipc.h>
 #include <storage/lwlock.h>
 #include <utils/timestamp.h>
@@ -34,6 +35,7 @@ extern bool guc_pgaudit_ltf_log_disconnections;
 extern int guc_pgaudit_ltf_auto_close_minutes;
 extern char *guc_pgaudit_ltf_log_format;
 extern bool guc_pgaudit_ltf_log_execution_time;
+extern bool guc_pgaudit_ltf_log_execution_memory;
 
 // Audit log file handler
 extern FILE *pgaudit_ltf_file_handler;
@@ -45,14 +47,20 @@ extern pthread_attr_t pgaudit_ltf_autoclose_thread_attr;
 extern Timestamp pgaudit_ltf_autoclose_active_ts;
 
 // Statement time measurement
-extern TimestampTz pgaudit_ltf_statement_start_time;
-extern TimestampTz pgaudit_ltf_statement_end_time;
+extern instr_time pgaudit_ltf_statement_start_time;
+extern instr_time pgaudit_ltf_statement_end_time;
+
+// Statement memory measurement
+extern Size pgaudit_ltf_statement_memory_start;
+extern Size pgaudit_ltf_statement_memory_end;
+extern Size pgaudit_ltf_statement_memory_peak;
 
 // Hook log
 extern emit_log_hook_type pgaudit_ltf_prev_emit_log_hook;
 
 // Executor Hook
 extern ExecutorStart_hook_type pgaudit_ltf_prev_ExecutorStart;
+extern ExecutorRun_hook_type pgaudit_ltf_prev_ExecutorRun;
 extern ExecutorEnd_hook_type pgaudit_ltf_prev_ExecutorEnd;
 
 // Shared Memory types

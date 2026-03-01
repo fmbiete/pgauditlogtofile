@@ -109,7 +109,18 @@ _This features creates a background thread that will sleep in the background and
 **Default**: 0
 
 ### pgaudit.log_execution_time
-Measures the execution time of each statement audited.
+Measures the execution time of each statement audited in seconds with nanoseconds precision.
+
+
+**Scope**: System [requires a restart]
+
+**Default**: off
+
+
+### pgaudit.log_execution_memory
+Measures the execution memory footprint of each statement audited.
+
+_This features produces a start, end, delta and peak value._
 
 **Scope**: System [requires a restart]
 
@@ -153,7 +164,11 @@ CREATE FOREIGN TABLE pgauditlogtofile_extern (
   function_name text NULL,
   filename_linenum text NULL,
   application_name text NULL,
-  execution_time double NULL
+  execution_time double NULL,
+  execution_memory_start double NULL,
+  execution_memory_end double NULL,
+  execution_memory_peak double NULL,
+  execution_memory_delta double NULL
 )
 SERVER your_server
 OPTIONS (filename 'audit_log.csv', format 'csv');
