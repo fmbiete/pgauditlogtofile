@@ -45,11 +45,27 @@ char *PgAuditLogToFile_format_now_timestamp_millis(void)
   struct pg_tm tm;
   fsec_t fsec;
   const char *tzn;
+  int tz;
 
   formatted_log_time = palloc(FORMATTED_TS_LEN);
 
-  if (timestamp2tm(GetCurrentTimestamp(), NULL, &tm, &fsec, &tzn, log_timezone) == 0)
+  if (timestamp2tm(GetCurrentTimestamp(), &tz, &tm, &fsec, &tzn, log_timezone) == 0)
   {
+    // Ensure we always have a timezone abbreviation. If timestamp2tm() gives NULL, derive one from the timezone object.
+    char tzbuf[16];
+    if (tzn == NULL)
+    {
+      /* Format numeric offset like +01:00 */
+      int hours = tz / 3600;
+      int mins = abs(tz % 3600) / 60;
+      snprintf(tzbuf, sizeof(tzbuf), "%+03d:%02d", hours, mins);
+      tzn = tzbuf;
+    }
+
+    /* As a final fallback, guarantee a non-null string */
+    if (tzn == NULL)
+      tzn = "";
+
     pg_snprintf(formatted_log_time, FORMATTED_TS_LEN, "%04d-%02d-%02d %02d:%02d:%02d.%03d %s",
                 tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
                 (int)(fsec / 1000) /* milliseconds */, tzn);
