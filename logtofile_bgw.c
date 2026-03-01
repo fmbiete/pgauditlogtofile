@@ -113,9 +113,8 @@ void PgAuditLogToFileMain(Datum arg)
       proc_exit(1);
 
     ResetLatch(&MyProc->procLatch);
+    MemoryContextReset(PgAuditLogToFileContext);
   }
-
-  MemoryContextReset(PgAuditLogToFileContext);
 
   ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile worker shutting down")));
 
