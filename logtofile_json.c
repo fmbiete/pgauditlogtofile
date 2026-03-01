@@ -43,16 +43,15 @@ inline static void pgauditlogtofile_pgaudit2json(StringInfo buf, char *message)
  */
 void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars)
 {
-  char *formatted_log_time;
+  char formatted_log_time[FORMATTED_TS_LEN];
 
   /* json record start */
   appendStringInfoString(buf, "{\"log.source\":\"pgauditlogtofile\"");
   pgauditlogtofile_append_json_key_value(buf, "severity", "audit");
 
   /* timestamp with milliseconds */
-  formatted_log_time = PgAuditLogToFile_format_now_timestamp_millis();
+  PgAuditLogToFile_format_now_timestamp_millis(formatted_log_time, sizeof(formatted_log_time));
   pgauditlogtofile_append_json_key_value(buf, "timestamp", formatted_log_time);
-  pfree(formatted_log_time);
 
   /* username */
   if (MyProcPort && MyProcPort->user_name)

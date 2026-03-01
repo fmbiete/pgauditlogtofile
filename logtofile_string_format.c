@@ -32,22 +32,18 @@
 #include <utils/ps_status.h>
 #include <utils/timestamp.h>
 
-#define FORMATTED_TS_LEN 64
-
 /**
  * @brief Formats the record time
- * @param void
+ * @param buf buffer to write the formatted timestamp
+ * @param len length of the buffer
  * @return void
  */
-char *PgAuditLogToFile_format_now_timestamp_millis(void)
+void PgAuditLogToFile_format_now_timestamp_millis(char *buf, size_t len)
 {
-  char *formatted_log_time;
   struct pg_tm tm;
   fsec_t fsec;
   const char *tzn;
   int tz;
-
-  formatted_log_time = palloc(FORMATTED_TS_LEN);
 
   if (timestamp2tm(GetCurrentTimestamp(), &tz, &tm, &fsec, &tzn, log_timezone) == 0)
   {
@@ -66,14 +62,12 @@ char *PgAuditLogToFile_format_now_timestamp_millis(void)
     if (tzn == NULL)
       tzn = "";
 
-    pg_snprintf(formatted_log_time, FORMATTED_TS_LEN, "%04d-%02d-%02d %02d:%02d:%02d.%03d %s",
+    pg_snprintf(buf, len, "%04d-%02d-%02d %02d:%02d:%02d.%03d %s",
                 tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
                 (int)(fsec / 1000) /* milliseconds */, tzn);
   }
   else
   {
-    strlcpy(formatted_log_time, "[invalid timestamp]", FORMATTED_TS_LEN);
+    strlcpy(buf, "[invalid timestamp]", len);
   }
-
-  return formatted_log_time;
 }

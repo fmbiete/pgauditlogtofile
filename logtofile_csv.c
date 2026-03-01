@@ -44,13 +44,12 @@ inline static void pgauditlogtofile_pgaudit_escape(StringInfo buf, char *line)
 void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars)
 {
   bool print_stmt = false;
-  char *formatted_log_time;
+  char formatted_log_time[FORMATTED_TS_LEN];
 
   /* timestamp with milliseconds */
 
-  formatted_log_time = PgAuditLogToFile_format_now_timestamp_millis();
+  PgAuditLogToFile_format_now_timestamp_millis(formatted_log_time, sizeof(formatted_log_time));
   pgauditlogtofile_append_csv_value(buf, formatted_log_time);
-  pfree(formatted_log_time);
   appendStringInfoCharMacro(buf, ',');
 
   /* username */
