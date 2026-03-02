@@ -13,10 +13,13 @@
 #define _LOGTOFILE_STRING_FORMAT_H_
 
 #include <postgres.h>
+#include <datatype/timestamp.h>
+#include <portability/instr_time.h>
 
 #define FORMATTED_TS_LEN 64
 #define FORMATTED_NUMLINE_LEN 32
 
-extern void PgAuditLogToFile_format_now_timestamp_millis(char *buf, size_t len);
+extern void PgAuditLogToFile_format_instr_time_nanos(instr_time t, char *buf, size_t len);
+
 
 #endif

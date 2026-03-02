@@ -45,10 +45,11 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
 {
   bool print_stmt = false;
   char formatted_log_time[FORMATTED_TS_LEN];
+  instr_time now_instr;
 
-  /* timestamp with milliseconds */
-
-  PgAuditLogToFile_format_now_timestamp_millis(formatted_log_time, sizeof(formatted_log_time));
+  /* timestamp with nanoseconds */
+  INSTR_TIME_SET_CURRENT(now_instr);
+  PgAuditLogToFile_format_instr_time_nanos(now_instr, formatted_log_time, sizeof(formatted_log_time));
   pgauditlogtofile_append_csv_value(buf, formatted_log_time);
   appendStringInfoCharMacro(buf, ',');
 
@@ -180,6 +181,18 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
   {
     double total_time;
     instr_time duration = pgaudit_ltf_statement_end_time;
+
+    /* start time */
+    PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_start_time, formatted_log_time, sizeof(formatted_log_time));
+    pgauditlogtofile_append_csv_value(buf, formatted_log_time);
+    appendStringInfoCharMacro(buf, ',');
+    
+    /* end time */
+    PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_end_time, formatted_log_time, sizeof(formatted_log_time));
+    pgauditlogtofile_append_csv_value(buf, formatted_log_time);
+    appendStringInfoCharMacro(buf, ',');
+
+    /* execution time */
     INSTR_TIME_SUBTRACT(duration, pgaudit_ltf_statement_start_time);
     total_time = INSTR_TIME_GET_DOUBLE(duration);
     pgauditlogtofile_append_csv_fmt(buf, "%.9f", total_time);

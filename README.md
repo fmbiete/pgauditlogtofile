@@ -132,7 +132,7 @@ _This features produces a start, end, delta and peak value._
 ```
 CREATE FOREIGN TABLE pgauditlogtofile_extern (
   ----fields from postgresql session----
-  log_time timestamptz(3) NULL,
+  log_time timestamptz(9) NULL,
   user_name text NULL,
   database_name text NULL,
   process_id int4 NULL,
@@ -164,6 +164,8 @@ CREATE FOREIGN TABLE pgauditlogtofile_extern (
   function_name text NULL,
   filename_linenum text NULL,
   application_name text NULL,
+  execution_time_start timestamptz(9) NULL,
+  execution_time_end timestamptz(9) NULL,
   execution_time double NULL,
   execution_memory_start double NULL,
   execution_memory_end double NULL,

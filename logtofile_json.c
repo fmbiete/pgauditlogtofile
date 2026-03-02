@@ -44,13 +44,15 @@ inline static void pgauditlogtofile_pgaudit2json(StringInfo buf, char *message)
 void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars)
 {
   char formatted_log_time[FORMATTED_TS_LEN];
+  instr_time now_instr;
 
   /* json record start */
   appendStringInfoString(buf, "{\"log.source\":\"pgauditlogtofile\"");
   pgauditlogtofile_append_json_key_value(buf, "severity", "audit");
 
-  /* timestamp with milliseconds */
-  PgAuditLogToFile_format_now_timestamp_millis(formatted_log_time, sizeof(formatted_log_time));
+  /* timestamp with nanoseconds */
+  INSTR_TIME_SET_CURRENT(now_instr);
+  PgAuditLogToFile_format_instr_time_nanos(now_instr, formatted_log_time, sizeof(formatted_log_time));
   pgauditlogtofile_append_json_key_value(buf, "timestamp", formatted_log_time);
 
   /* username */
@@ -170,6 +172,16 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
   {
     double total_time;
     instr_time duration = pgaudit_ltf_statement_end_time;
+
+    /* execution time start */
+    PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_start_time, formatted_log_time, sizeof(formatted_log_time));
+    pgauditlogtofile_append_json_key_value(buf, "custom.execution_start", formatted_log_time);
+
+    /* execution time end */
+    PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_end_time, formatted_log_time, sizeof(formatted_log_time));
+    pgauditlogtofile_append_json_key_value(buf, "custom.execution_end", formatted_log_time);
+    
+    /* execution time */
     INSTR_TIME_SUBTRACT(duration, pgaudit_ltf_statement_start_time);
     total_time = INSTR_TIME_GET_DOUBLE(duration);
     pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_time", "%.9f", total_time);
