@@ -33,7 +33,6 @@
 /* Defines */
 #define PGAUDIT_PREFIX_LINE "AUDIT: "
 #define PGAUDIT_PREFIX_LINE_LENGTH sizeof(PGAUDIT_PREFIX_LINE) - 1
-#define FORMATTED_TS_LEN 128
 
 /*
  * We really want line-buffered mode for logfile output, but Windows does
