@@ -17,6 +17,7 @@
 #include "logtofile_vars.h"
 
 #include <access/xact.h>
+#include <c.h>
 #include <lib/stringinfo.h>
 #include <libpq/libpq-be.h>
 #include <miscadmin.h>
@@ -31,7 +32,6 @@
 #include <tcop/tcopprot.h>
 #include <utils/ps_status.h>
 #include <utils/timestamp.h>
-#include <stdint.h>
 
 /**
  * @brief Formats the record time
@@ -45,14 +45,14 @@ void PgAuditLogToFile_format_instr_time_nanos(instr_time t, char *buf, size_t le
   instr_time now_instr;
   instr_time delta;
   TimestampTz now_ts;
-  uint64_t delta_micro;
+  int64 delta_micro;
   TimestampTz t_ts;
   struct pg_tm tm;
   fsec_t fsec;
   const char *tzn;
   int tz;
   char tzbuf[16];
-  uint64_t nsec;
+  int64 nsec;
   size_t cur_len;
   size_t remaining;
 
@@ -64,8 +64,8 @@ void PgAuditLogToFile_format_instr_time_nanos(instr_time t, char *buf, size_t le
 #if PG_VERSION_NUM >= 160000
   /* Use nanosecond resolution where available */
   {
-    uint64_t delta_nano = INSTR_TIME_GET_NANOSEC(delta);
-    delta_micro = delta_nano / 1000ULL;
+    int64 delta_nano = INSTR_TIME_GET_NANOSEC(delta);
+    delta_micro = delta_nano / INT64CONST(1000);
   }
 #else
   /* Fallback to microsecond resolution on older Postgres */
@@ -88,11 +88,11 @@ void PgAuditLogToFile_format_instr_time_nanos(instr_time t, char *buf, size_t le
       tzn = "";
 
     /* Get nanoseconds from instr_time if available; fall back to microseconds*1000 */
-  #if PG_VERSION_NUM >= 160000
-    nsec = INSTR_TIME_GET_NANOSEC(t) % 1000000000ULL;
-  #else
-    nsec = (uint64_t) INSTR_TIME_GET_MICROSEC(t) * 1000ULL;
-  #endif
+#if PG_VERSION_NUM >= 160000
+    nsec = INSTR_TIME_GET_NANOSEC(t) % INT64CONST(1000000000);
+#else
+    nsec = INSTR_TIME_GET_MICROSEC(t) * INT64CONST(1000);
+#endif
 
     /* Print timestamp without timezone first */
     pg_snprintf(buf, len, "%04d-%02d-%02d %02d:%02d:%02d.%09llu",
