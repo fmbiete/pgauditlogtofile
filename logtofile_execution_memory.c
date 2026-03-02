@@ -38,10 +38,16 @@ void PgAuditLogToFile_ExecutorEnd_Memory(QueryDesc *queryDesc)
  * @brief ExecutorRun hook to capture peak of memory usage during run
  * @param queryDesc
  */
+#if (PG_VERSION_NUM >= 180000)
+void PgAuditLogToFile_ExecutorRun_Memory(QueryDesc *queryDesc,
+                                         __attribute__((unused)) ScanDirection direction,
+                                         __attribute__((unused)) uint64 count)
+#else
 void PgAuditLogToFile_ExecutorRun_Memory(QueryDesc *queryDesc,
                                          __attribute__((unused)) ScanDirection direction,
                                          __attribute__((unused)) uint64 count,
                                          __attribute__((unused)) bool execute_once)
+#endif
 {
   MemoryContext ctx = get_query_memory_context(queryDesc);
   Size current = MemoryContextTotalAllocated(ctx);

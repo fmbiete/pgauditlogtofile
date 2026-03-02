@@ -17,6 +17,10 @@
 
 extern void PgAuditLogToFile_ExecutorStart_Memory(QueryDesc *queryDesc, int eflags);
 extern void PgAuditLogToFile_ExecutorEnd_Memory(QueryDesc *queryDesc);
+#if (PG_VERSION_NUM >= 180000)
+extern void PgAuditLogToFile_ExecutorRun_Memory(QueryDesc *queryDesc, ScanDirection direction, uint64 count);
+#else
 extern void PgAuditLogToFile_ExecutorRun_Memory(QueryDesc *queryDesc, ScanDirection direction, uint64 count, bool execute_once);
+#endif
 
 #endif
