@@ -103,7 +103,7 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
 #endif
 
   /* Transaction id */
-  pgauditlogtofile_append_json_key_fmt(buf, "custom.virtual_transaction_id", "%u", GetTopTransactionIdIfAny());
+  pgauditlogtofile_append_json_key_fmt(buf, "custom.transaction_id", "%u", GetTopTransactionIdIfAny());
 
   /* SQL state code */
   pgauditlogtofile_append_json_key_value(buf, "custom.state_code", unpack_sql_state(edata->sqlerrcode));
