@@ -29,8 +29,8 @@
 
 inline static void pgauditlogtofile_append_csv_value(StringInfo buf, const char *value)
     __attribute__((always_inline));
-static void pgauditlogtofile_append_csv_fmt(StringInfo buf, const char *fmt, ...)
-    __attribute__((format(gnu_printf, 2, 3)));
+inline static void pgauditlogtofile_append_csv_fmt(StringInfo buf, const char *fmt, ...)
+    __attribute__((format(gnu_printf, 2, 3), always_inline));
 inline static void pgauditlogtofile_pgaudit_escape(StringInfo buf, char *line)
     __attribute__((always_inline));
 
@@ -186,7 +186,7 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
     PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_start_time, formatted_log_time, sizeof(formatted_log_time));
     pgauditlogtofile_append_csv_value(buf, formatted_log_time);
     appendStringInfoCharMacro(buf, ',');
-    
+
     /* end time */
     PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_end_time, formatted_log_time, sizeof(formatted_log_time));
     pgauditlogtofile_append_csv_value(buf, formatted_log_time);

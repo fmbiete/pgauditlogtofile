@@ -29,8 +29,8 @@
 
 inline static void pgauditlogtofile_append_json_key_value(StringInfo buf, const char *key, const char *value)
     __attribute__((always_inline));
-static void pgauditlogtofile_append_json_key_fmt(StringInfo buf, const char *key, const char *fmt, ...)
-    __attribute__((format(gnu_printf, 3, 4)));
+inline static void pgauditlogtofile_append_json_key_fmt(StringInfo buf, const char *key, const char *fmt, ...)
+    __attribute__((format(gnu_printf, 3, 4), always_inline));
 inline static void pgauditlogtofile_pgaudit2json(StringInfo buf, char *message)
     __attribute__((always_inline));
 
@@ -180,7 +180,7 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
     /* execution time end */
     PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_end_time, formatted_log_time, sizeof(formatted_log_time));
     pgauditlogtofile_append_json_key_value(buf, "custom.execution_end", formatted_log_time);
-    
+
     /* execution time */
     INSTR_TIME_SUBTRACT(duration, pgaudit_ltf_statement_start_time);
     total_time = INSTR_TIME_GET_DOUBLE(duration);
