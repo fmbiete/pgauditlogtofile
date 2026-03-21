@@ -29,8 +29,8 @@
 
 inline static void pgauditlogtofile_append_json_key_value(StringInfo buf, const char *key, const char *value)
     __attribute__((always_inline));
-inline static void pgauditlogtofile_append_json_key_fmt(StringInfo buf, const char *key, const char *fmt, ...)
-    __attribute__((format(gnu_printf, 3, 4), always_inline));
+static void pgauditlogtofile_append_json_key_fmt(StringInfo buf, const char *key, const char *fmt, ...)
+    __attribute__((format(gnu_printf, 3, 4)));
 inline static void pgauditlogtofile_pgaudit2json(StringInfo buf, char *message)
     __attribute__((always_inline));
 

@@ -29,8 +29,8 @@
 
 inline static void pgauditlogtofile_append_csv_value(StringInfo buf, const char *value)
     __attribute__((always_inline));
-inline static void pgauditlogtofile_append_csv_fmt(StringInfo buf, const char *fmt, ...)
-    __attribute__((format(gnu_printf, 2, 3), always_inline));
+static void pgauditlogtofile_append_csv_fmt(StringInfo buf, const char *fmt, ...)
+    __attribute__((format(gnu_printf, 2, 3)));
 inline static void pgauditlogtofile_pgaudit_escape(StringInfo buf, char *line)
     __attribute__((always_inline));
 
