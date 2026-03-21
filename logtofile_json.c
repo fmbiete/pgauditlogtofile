@@ -201,7 +201,7 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
   appendStringInfoCharMacro(buf, '\n');
 }
 
-/* private methods */
+/* private functions */
 
 /**
  * @brief Split and escapes each piece on pgaudit original message and writes it as json key/value pair.

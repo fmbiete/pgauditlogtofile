@@ -221,6 +221,8 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
   appendStringInfoCharMacro(buf, '\n');
 }
 
+/* private functions */
+
 /**
  * @brief Writes a CSV value quoted and escaped.
  * @param buf where to write

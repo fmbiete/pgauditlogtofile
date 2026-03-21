@@ -17,8 +17,8 @@
 
 #include "logtofile_vars.h"
 
-// Private functions
-char *pgauditlogtofile_tm2filename(const struct pg_tm *tm);
+/* forward declaration private functions */
+static char *pgauditlogtofile_tm2filename(const struct pg_tm *tm);
 
 /**
  * @brief Calculate the current filename of the log file
@@ -68,12 +68,14 @@ void PgAuditLogToFile_set_next_rotation_time(void)
   LWLockRelease(pgaudit_ltf_shm->lock);
 }
 
+/* private functions */
+
 /**
  * @brief Convert a pg_tm structure to a filename
  * @param tm - the pg_tm structure
  * @return char * - the filename
  */
-char *
+static char *
 pgauditlogtofile_tm2filename(const struct pg_tm *tm)
 {
   char *filename = NULL;

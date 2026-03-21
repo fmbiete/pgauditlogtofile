@@ -52,13 +52,13 @@ static int autoclose_thread_status_debug = 0; // 0: new proc, 1: th running, 2: 
 static uint32 pgaudit_ltf_local_rotation_generation = 0;
 
 /* forward declaration private functions */
-void pgauditlogtofile_close_file(void);
-bool pgauditlogtofile_is_enabled(void);
-bool pgauditlogtofile_is_open_file(void);
-bool pgauditlogtofile_is_prefixed(const char *msg);
-bool pgauditlogtofile_open_file(void);
-bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars);
-bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars);
+static void pgauditlogtofile_close_file(void);
+static bool pgauditlogtofile_is_enabled(void);
+static bool pgauditlogtofile_is_open_file(void);
+static bool pgauditlogtofile_is_prefixed(const char *msg);
+static bool pgauditlogtofile_open_file(void);
+static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars);
+static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars);
 
 /* public methods */
 
@@ -100,12 +100,27 @@ void PgAuditLogToFile_emit_log(ErrorData *edata)
     pgaudit_ltf_prev_emit_log_hook(edata);
 }
 
+/* private functions */
+/**
+ * @brief Close the audit log file
+ * @param void
+ * @return void
+ */
+static void pgauditlogtofile_close_file(void)
+{
+  if (pgaudit_ltf_file_handler)
+  {
+    fclose(pgaudit_ltf_file_handler);
+    pgaudit_ltf_file_handler = NULL;
+  }
+}
+
 /**
  * @brief Checks if pgauditlogtofile is completely started and configured
  * @param void
  * @return bool - true if pgauditlogtofile is enabled
  */
-bool pgauditlogtofile_is_enabled(void)
+static bool pgauditlogtofile_is_enabled(void)
 {
   if (UsedShmemSegAddr == NULL)
     return false;
@@ -119,84 +134,11 @@ bool pgauditlogtofile_is_enabled(void)
 }
 
 /**
- * @brief Records an audit log
- * @param edata: error data
- * @param exclude_nchars: number of characters to exclude from the message
- * @return bool - true if the record was written
- */
-bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
-{
-  bool rc;
-  char shm_filename[MAXPGPATH];
-  uint32 current_generation;
-
-  /* MyProc deinitialized and no current file - we cannot audit to file */
-  if (MyProc == NULL && strlen(filename_in_use) == 0)
-    return false;
-
-  current_generation = pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation);
-  if (current_generation != pgaudit_ltf_local_rotation_generation || strlen(filename_in_use) == 0)
-  {
-    LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
-    strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
-    LWLockRelease(pgaudit_ltf_shm->lock);
-
-    pgaudit_ltf_local_rotation_generation = current_generation;
-
-    ereport(DEBUG5, (errmsg("pgauditlogtofile record audit in %s (shm %s)",
-                            filename_in_use, shm_filename)));
-    /* do we need to rotate? */
-    if (strlen(shm_filename) > 0 && strcmp(filename_in_use, shm_filename) != 0)
-    {
-      ereport(DEBUG3, (
-                          errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
-                                 shm_filename, filename_in_use)));
-      pgauditlogtofile_close_file();
-    }
-  }
-
-  if (!pgauditlogtofile_is_open_file() && !pgauditlogtofile_open_file())
-    return false;
-
-  rc = pgauditlogtofile_write_audit(edata, exclude_nchars);
-  pgaudit_ltf_autoclose_active_ts = GetCurrentTimestamp();
-
-  if (guc_pgaudit_ltf_auto_close_minutes > 0)
-  {
-    // only 1 auto-close thread
-    if (pg_atomic_test_set_flag(&pgaudit_ltf_autoclose_flag_thread))
-    {
-      ereport(DEBUG3, (errmsg("pgauditlogtofile record_audit - create autoclose thread")));
-      autoclose_thread_status_debug = 1;
-      pthread_attr_init(&pgaudit_ltf_autoclose_thread_attr);
-      pthread_attr_setdetachstate(&pgaudit_ltf_autoclose_thread_attr, PTHREAD_CREATE_DETACHED);
-      pthread_create(&pgaudit_ltf_autoclose_thread, &pgaudit_ltf_autoclose_thread_attr, PgAuditLogToFile_autoclose_run, &autoclose_thread_status_debug);
-    }
-  }
-
-  return rc;
-}
-
-/**
- * @brief Close the audit log file
- * @param void
- * @return void
- */
-void pgauditlogtofile_close_file(void)
-{
-  if (pgaudit_ltf_file_handler)
-  {
-    fclose(pgaudit_ltf_file_handler);
-    pgaudit_ltf_file_handler = NULL;
-  }
-}
-
-/**
  * @brief Checks if the audit log file is open
  * @param void
  * @return bool - true if the file is open
  */
-bool pgauditlogtofile_is_open_file(void)
+static bool pgauditlogtofile_is_open_file(void)
 {
   if (pgaudit_ltf_file_handler)
     return true;
@@ -209,7 +151,7 @@ bool pgauditlogtofile_is_open_file(void)
  * @param msg: message
  * @return bool - true if the message starts with a prefix
  */
-bool pgauditlogtofile_is_prefixed(const char *msg)
+static bool pgauditlogtofile_is_prefixed(const char *msg)
 {
   bool found = false;
   size_t i;
@@ -238,7 +180,7 @@ bool pgauditlogtofile_is_prefixed(const char *msg)
  * @param void
  * @return bool - true if the file was opened
  */
-bool pgauditlogtofile_open_file(void)
+static bool pgauditlogtofile_open_file(void)
 {
   mode_t oumask;
   bool opened = false;
@@ -295,11 +237,70 @@ bool pgauditlogtofile_open_file(void)
 }
 
 /**
+ * @brief Records an audit log
+ * @param edata: error data
+ * @param exclude_nchars: number of characters to exclude from the message
+ * @return bool - true if the record was written
+ */
+static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
+{
+  bool rc;
+  char shm_filename[MAXPGPATH];
+  uint32 current_generation;
+
+  /* MyProc deinitialized and no current file - we cannot audit to file */
+  if (MyProc == NULL && strlen(filename_in_use) == 0)
+    return false;
+
+  current_generation = pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation);
+  if (current_generation != pgaudit_ltf_local_rotation_generation || strlen(filename_in_use) == 0)
+  {
+    LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
+    strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
+    LWLockRelease(pgaudit_ltf_shm->lock);
+
+    pgaudit_ltf_local_rotation_generation = current_generation;
+
+    ereport(DEBUG5, (errmsg("pgauditlogtofile record audit in %s (shm %s)",
+                            filename_in_use, shm_filename)));
+    /* do we need to rotate? */
+    if (strlen(shm_filename) > 0 && strcmp(filename_in_use, shm_filename) != 0)
+    {
+      ereport(DEBUG3, (
+                          errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
+                                 shm_filename, filename_in_use)));
+      pgauditlogtofile_close_file();
+    }
+  }
+
+  if (!pgauditlogtofile_is_open_file() && !pgauditlogtofile_open_file())
+    return false;
+
+  rc = pgauditlogtofile_write_audit(edata, exclude_nchars);
+  pgaudit_ltf_autoclose_active_ts = GetCurrentTimestamp();
+
+  if (guc_pgaudit_ltf_auto_close_minutes > 0)
+  {
+    // only 1 auto-close thread
+    if (pg_atomic_test_set_flag(&pgaudit_ltf_autoclose_flag_thread))
+    {
+      ereport(DEBUG3, (errmsg("pgauditlogtofile record_audit - create autoclose thread")));
+      autoclose_thread_status_debug = 1;
+      pthread_attr_init(&pgaudit_ltf_autoclose_thread_attr);
+      pthread_attr_setdetachstate(&pgaudit_ltf_autoclose_thread_attr, PTHREAD_CREATE_DETACHED);
+      pthread_create(&pgaudit_ltf_autoclose_thread, &pgaudit_ltf_autoclose_thread_attr, PgAuditLogToFile_autoclose_run, &autoclose_thread_status_debug);
+    }
+  }
+
+  return rc;
+}
+
+/**
  * @brief Writes an audit record in the audit log file
  * @param edata: error data
  * @param exclude_nchars: number of characters to exclude from the message
  */
-bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
+static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
 {
   StringInfoData buf;
   bool success = false;

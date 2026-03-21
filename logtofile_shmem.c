@@ -60,9 +60,6 @@ const char *postgresConnMsg[] = {
 const char *postgresDisconnMsg[] = {
     "disconnection: session time: %d:%02d:%02d.%03d user=%s database=%s host=%s%s%s"};
 
-// Private functions
-Timestamp pgauditlogtofile_truncate_timestamp(Timestamp t);
-
 #if (PG_VERSION_NUM >= 150000)
 /**
  * @brief Request shared memory space
