@@ -25,6 +25,7 @@
 #include <storage/ipc.h>
 #include <storage/lwlock.h>
 #include <storage/pg_shmem.h>
+#include <storage/proc.h>
 #include <utils/timestamp.h>
 
 #include <pthread.h>
@@ -128,6 +129,10 @@ bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars)
   bool rc;
   char shm_filename[MAXPGPATH];
   uint32 current_generation;
+
+  /* MyProc deinitialized and no current file - we cannot audit to file */
+  if (MyProc == NULL && strlen(filename_in_use) == 0)
+    return false;
 
   current_generation = pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation);
   if (current_generation != pgaudit_ltf_local_rotation_generation || strlen(filename_in_use) == 0)
@@ -239,13 +244,21 @@ bool pgauditlogtofile_open_file(void)
   bool opened = false;
   char shm_filename[MAXPGPATH];
 
-  LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
-  strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
-  LWLockRelease(pgaudit_ltf_shm->lock);
+  if (MyProc == NULL)
+  {
+    /* MyProc deinitialized, reuse filename_in_use */
+    strlcpy(shm_filename, filename_in_use, MAXPGPATH);
+  }
+  else
+  {
+    LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
+    strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
+    LWLockRelease(pgaudit_ltf_shm->lock);
+  }
 
   // if the filename is empty, we short-circuit
   if (strlen(shm_filename) == 0)
-    return opened;
+    return false;
 
   /* Create spool directory if not present; ignore errors */
   (void)MakePGDirectory(guc_pgaudit_ltf_log_directory);
