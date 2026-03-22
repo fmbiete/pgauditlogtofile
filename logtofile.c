@@ -36,6 +36,11 @@
 #include <datatype/timestamp.h>
 #include <pgstat.h>
 
+static const struct config_enum_entry format_options[] = {
+    {"csv", PGAUDIT_LTF_FORMAT_CSV, false},
+    {"json", PGAUDIT_LTF_FORMAT_JSON, false},
+    {NULL, 0, false}};
+
 static const struct config_enum_entry compression_options[] = {
     {"off", PGAUDIT_LTF_COMPRESSION_OFF, false},
     {"gzip", PGAUDIT_LTF_COMPRESSION_GZIP, false},
@@ -116,13 +121,13 @@ void _PG_init(void)
       PGC_SIGHUP,
       GUC_NOT_IN_SAMPLE | GUC_UNIT_MIN | GUC_SUPERUSER_ONLY, NULL, NULL, NULL);
 
-  DefineCustomStringVariable(
+  DefineCustomEnumVariable(
       "pgaudit.log_format",
       "Format of the audit data (csv or json)", NULL,
       &guc_pgaudit_ltf_log_format,
-      "csv",
+      PGAUDIT_LTF_FORMAT_CSV, format_options,
       PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
-      PgAuditLogToFile_guc_check_log_format, NULL, NULL);
+      NULL, NULL, NULL);
 
   DefineCustomBoolVariable(
       "pgaudit.log_execution_time",

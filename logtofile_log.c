@@ -308,10 +308,15 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
 
   initStringInfo(&buf);
   /* create the log line */
-  if (pg_strcasecmp(guc_pgaudit_ltf_log_format, "csv") == 0)
+  switch (guc_pgaudit_ltf_log_format)
+  {
+  case PGAUDIT_LTF_FORMAT_CSV:
     PgAuditLogToFile_csv_audit(&buf, edata, exclude_nchars);
-  else if (pg_strcasecmp(guc_pgaudit_ltf_log_format, "json") == 0)
+    break;
+  case PGAUDIT_LTF_FORMAT_JSON:
     PgAuditLogToFile_json_audit(&buf, edata, exclude_nchars);
+    break;
+  }
 
   // auto-close maybe has closed the file
   if (pgaudit_ltf_file_handler == -1)

@@ -20,10 +20,10 @@ int guc_pgaudit_ltf_log_rotation_age = HOURS_PER_DAY * MINS_PER_HOUR; // Default
 bool guc_pgaudit_ltf_log_connections = false;                         // Default: off
 bool guc_pgaudit_ltf_log_disconnections = false;                      // Default: off
 int guc_pgaudit_ltf_auto_close_minutes = 0;                           // Default: off
-char *guc_pgaudit_ltf_log_format = NULL;
-bool guc_pgaudit_ltf_log_execution_time = false;                   // Default: off
-bool guc_pgaudit_ltf_log_execution_memory = false;                 // Default: off
-int guc_pgaudit_ltf_log_compression = PGAUDIT_LTF_COMPRESSION_OFF; // Default: off
+int guc_pgaudit_ltf_log_format = PGAUDIT_LTF_FORMAT_CSV;              // Default: csv
+bool guc_pgaudit_ltf_log_execution_time = false;                      // Default: off
+bool guc_pgaudit_ltf_log_execution_memory = false;                    // Default: off
+int guc_pgaudit_ltf_log_compression = PGAUDIT_LTF_COMPRESSION_OFF;    // Default: off
 
 // Audit log file handler
 int pgaudit_ltf_file_handler = -1;

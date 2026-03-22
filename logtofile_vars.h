@@ -27,6 +27,12 @@
 
 typedef enum
 {
+  PGAUDIT_LTF_FORMAT_CSV,
+  PGAUDIT_LTF_FORMAT_JSON
+} PgAuditLogToFileFormat;
+
+typedef enum
+{
   PGAUDIT_LTF_COMPRESSION_OFF,
   PGAUDIT_LTF_COMPRESSION_GZIP,
   PGAUDIT_LTF_COMPRESSION_LZ4,
@@ -41,7 +47,7 @@ extern int guc_pgaudit_ltf_log_rotation_age;
 extern bool guc_pgaudit_ltf_log_connections;
 extern bool guc_pgaudit_ltf_log_disconnections;
 extern int guc_pgaudit_ltf_auto_close_minutes;
-extern char *guc_pgaudit_ltf_log_format;
+extern int guc_pgaudit_ltf_log_format;
 extern bool guc_pgaudit_ltf_log_execution_time;
 extern bool guc_pgaudit_ltf_log_execution_memory;
 extern int guc_pgaudit_ltf_log_compression;
