@@ -78,8 +78,8 @@ Number of minutes after which the audit file will be rotated.
 **Default**: 1440 minutes (1 day)
 
 **Performance Notes**:
-- If _log_rotation_age < 60_ the rotation background worker will wake up every 10 seconds.
-- If _log_rotation_age > 60_ the rotation background worker will wake up every 1 minute.
+- If _log_rotation_age < 5_ the rotation background worker will wake up every 10 seconds.
+- If _log_rotation_age >= 5_ the rotation background worker will wake up every 1 minute.
 
 ### pgaudit.log_connections
 Intercepts server log messages emited when log_connections is on

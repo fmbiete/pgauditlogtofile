@@ -75,11 +75,15 @@ void PgAuditLogToFileMain(Datum arg)
 
     CHECK_FOR_INTERRUPTS();
 
-    if (guc_pgaudit_ltf_log_rotation_age < MINS_PER_HOUR)
+    if (guc_pgaudit_ltf_log_rotation_age < 5)
     {
       // very small rotation, wake up frequently - this has a performance impact,
       // but rotation every a few minutes should only be done for testing
       sleep_ms = 10000;
+    }
+    else
+    {
+      sleep_ms = SECS_PER_MINUTE * 1000;
     }
     ereport(DEBUG5, (errmsg("pgauditlogtofile bgw loop")));
     if (ConfigReloadPending)
