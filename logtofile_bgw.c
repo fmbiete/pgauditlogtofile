@@ -14,6 +14,7 @@
 /* these are always necessary for a bgworker */
 #include <miscadmin.h>
 #include <postmaster/bgworker.h>
+#include <postmaster/interrupt.h>
 #include <storage/ipc.h>
 #include <storage/latch.h>
 #include <storage/lwlock.h>
@@ -36,13 +37,11 @@
 #include "logtofile_vars.h"
 
 /* global settings */
-static bool PgAuditLogToFileReloadConfig = false;
 
 /* flags set by signal handlers */
 static volatile sig_atomic_t got_sigterm = false;
 
 /* forward declaration private functions */
-static void pgauditlogtofile_sighup(SIGNAL_ARGS);
 static void pgauditlogtofile_sigterm(SIGNAL_ARGS);
 
 /**
@@ -55,7 +54,7 @@ void PgAuditLogToFileMain(Datum arg)
   int sleep_ms = SECS_PER_MINUTE * 1000;
   MemoryContext PgAuditLogToFileContext = NULL;
 
-  pqsignal(SIGHUP, pgauditlogtofile_sighup);
+  pqsignal(SIGHUP, SignalHandlerForConfigReload);
   pqsignal(SIGINT, SIG_IGN);
   pqsignal(SIGTERM, pgauditlogtofile_sigterm);
 
@@ -83,14 +82,14 @@ void PgAuditLogToFileMain(Datum arg)
       sleep_ms = 10000;
     }
     ereport(DEBUG5, (errmsg("pgauditlogtofile bgw loop")));
-    if (PgAuditLogToFileReloadConfig)
+    if (ConfigReloadPending)
     {
+      ConfigReloadPending = false;
       ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop reload cfg")));
       ProcessConfigFile(PGC_SIGHUP);
       PgAuditLogToFile_calculate_current_filename();
       PgAuditLogToFile_set_next_rotation_time();
       ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
-      PgAuditLogToFileReloadConfig = false;
     }
     else
     {
@@ -132,21 +131,6 @@ static void
 pgauditlogtofile_sigterm(SIGNAL_ARGS)
 {
   got_sigterm = true;
-  if (MyProc != NULL)
-  {
-    SetLatch(&MyProc->procLatch);
-  }
-}
-
-/**
- * @brief Signal handler for SIGTERM
- * @param signal_arg: signal number
- * @return void
- */
-static void
-pgauditlogtofile_sighup(SIGNAL_ARGS)
-{
-  PgAuditLogToFileReloadConfig = true;
   if (MyProc != NULL)
   {
     SetLatch(&MyProc->procLatch);
