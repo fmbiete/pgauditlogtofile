@@ -19,7 +19,7 @@ Vagrant.configure(2) do |config|
 
         # Install SCL llvm toolset 7 and enable it by default
         yum install -y centos-release-scl-rh epel-release
-        yum install -y postgresql${PG_VERSION}-devel make openssl-devel llvm-toolset-7-clang llvm5.0
+        yum install -y postgresql${PG_VERSION}-devel make openssl-devel llvm-toolset-7-clang llvm5.0 zlib-devel lz4-devel libzstd-devel
         echo 'source scl_source enable devtoolset-7' >> /etc/bashrc
         source /etc/bashrc
 

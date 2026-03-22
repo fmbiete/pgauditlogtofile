@@ -17,6 +17,7 @@
 
 extern bool PgAuditLogToFile_guc_check_directory(char **newval, void **extra, GucSource source);
 extern bool PgAuditLogToFile_guc_check_log_format(char **newval, void **extra, GucSource source);
+extern bool PgAuditLogToFile_guc_check_filename(char **newval, void **extra, GucSource source);
 extern const char *PgAuditLogToFile_guc_show_file_mode(void);
 
 #endif

@@ -7,7 +7,7 @@ ENV PATH $PATH:/usr/pgsql-${PG_VERSION}/bin
 
 RUN dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm \
   && dnf install -y --enablerepo=crb --enablerepo=pgdg${PG_VERSION} \
-    postgresql${PG_VERSION}-server postgresql${PG_VERSION}-devel make openssl-devel llvm-toolset redhat-rpm-config krb5-devel \
+    postgresql${PG_VERSION}-server postgresql${PG_VERSION}-devel make openssl-devel llvm-toolset redhat-rpm-config krb5-devel zlib-devel lz4-devel libzstd-devel \
   && dnf clean all -y
 
   # Compile & install pgaudit

@@ -25,6 +25,14 @@
 
 #include <pthread.h>
 
+typedef enum
+{
+  PGAUDIT_LTF_COMPRESSION_OFF,
+  PGAUDIT_LTF_COMPRESSION_GZIP,
+  PGAUDIT_LTF_COMPRESSION_LZ4,
+  PGAUDIT_LTF_COMPRESSION_ZSTD
+} PgAuditLogToFileCompression;
+
 // Guc
 extern char *guc_pgaudit_ltf_log_directory;
 extern char *guc_pgaudit_ltf_log_filename;
@@ -36,6 +44,7 @@ extern int guc_pgaudit_ltf_auto_close_minutes;
 extern char *guc_pgaudit_ltf_log_format;
 extern bool guc_pgaudit_ltf_log_execution_time;
 extern bool guc_pgaudit_ltf_log_execution_memory;
+extern int guc_pgaudit_ltf_log_compression;
 
 // Audit log file handler
 extern int pgaudit_ltf_file_handler;

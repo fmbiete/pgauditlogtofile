@@ -64,6 +64,26 @@ bool PgAuditLogToFile_guc_check_log_format(char **newval, void **extra, GucSourc
 }
 
 /**
+ * @brief GUC Callback pgaudit.log_filename check value
+ * @param newval: new value
+ * @param extra: extra
+ * @param source: source
+ * @return bool: true if filename is valid
+ */
+bool PgAuditLogToFile_guc_check_filename(char **newval, void **extra, GucSource source)
+{
+  size_t len = strlen(*newval);
+  if ((len > 3 && strcmp(*newval + len - 3, ".gz") == 0) ||
+      (len > 4 && strcmp(*newval + len - 4, ".lz4") == 0) ||
+      (len > 4 && strcmp(*newval + len - 4, ".zst") == 0))
+  {
+    GUC_check_errdetail("Log filename cannot end with compression extension (.gz, .lz4, .zst) as it is automatically added when compression is enabled.");
+    return false;
+  }
+  return true;
+}
+
+/**
  * @brief GUC Callback pgaudit.log_file_mode
  * @param void
  * @return const char *: file mode

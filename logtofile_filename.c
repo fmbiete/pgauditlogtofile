@@ -91,5 +91,20 @@ pgauditlogtofile_tm2filename(const struct pg_tm *tm)
   /* Append formatted timestamp-based filename */
   pg_strftime(filename + len, MAXPGPATH - len, guc_pgaudit_ltf_log_filename, tm);
 
+  switch (guc_pgaudit_ltf_log_compression)
+  {
+  case PGAUDIT_LTF_COMPRESSION_GZIP:
+    strlcat(filename, ".gz", MAXPGPATH);
+    break;
+  case PGAUDIT_LTF_COMPRESSION_LZ4:
+    strlcat(filename, ".lz4", MAXPGPATH);
+    break;
+  case PGAUDIT_LTF_COMPRESSION_ZSTD:
+    strlcat(filename, ".zst", MAXPGPATH);
+    break;
+  default:
+    break;
+  }
+
   return filename;
 }

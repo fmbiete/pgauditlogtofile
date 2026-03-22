@@ -36,6 +36,13 @@
 #include <datatype/timestamp.h>
 #include <pgstat.h>
 
+static const struct config_enum_entry compression_options[] = {
+    {"off", PGAUDIT_LTF_COMPRESSION_OFF, false},
+    {"gzip", PGAUDIT_LTF_COMPRESSION_GZIP, false},
+    {"lz4", PGAUDIT_LTF_COMPRESSION_LZ4, false},
+    {"zstd", PGAUDIT_LTF_COMPRESSION_ZSTD, false},
+    {NULL, 0, false}};
+
 /**
  * @brief Main entry point for the extension
  * @param void
@@ -67,7 +74,7 @@ void _PG_init(void)
       &guc_pgaudit_ltf_log_filename,
       "audit-%Y%m%d_%H%M.log",
       PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
-      NULL, NULL, NULL);
+      PgAuditLogToFile_guc_check_filename, NULL, NULL);
 
   DefineCustomIntVariable(
       "pgaudit.log_file_mode",
@@ -131,6 +138,14 @@ void _PG_init(void)
       &guc_pgaudit_ltf_log_execution_memory,
       false,
       PGC_POSTMASTER, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+      NULL, NULL, NULL);
+
+  DefineCustomEnumVariable(
+      "pgaudit.log_compression",
+      "Compress the audit log file (off, gzip, lz4, zstd).", NULL,
+      &guc_pgaudit_ltf_log_compression,
+      PGAUDIT_LTF_COMPRESSION_OFF, compression_options,
+      PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
       NULL, NULL, NULL);
 
   EmitWarningsOnPlaceholders("pgauditlogtofile");

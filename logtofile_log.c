@@ -27,11 +27,15 @@
 #include <storage/pg_shmem.h>
 #include <storage/proc.h>
 #include <utils/timestamp.h>
+#include <utils/memutils.h>
 
 #include <pthread.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <zlib.h>
+#include <lz4frame.h>
+#include <zstd.h>
 
 /* Defines */
 #define PGAUDIT_PREFIX_LINE "AUDIT: "
@@ -52,6 +56,10 @@
 static char filename_in_use[MAXPGPATH];
 static int autoclose_thread_status_debug = 0; // 0: new proc, 1: th running, 2: th running sleep used, 3: th closed
 static uint32 pgaudit_ltf_local_rotation_generation = 0;
+static z_stream *pgaudit_ltf_zstream = NULL;
+static char *pgaudit_ltf_zbuf = NULL;
+static uLong pgaudit_ltf_zbuf_len = 0;
+static ZSTD_CCtx *pgaudit_ltf_zstd_cctx = NULL;
 
 /* forward declaration private functions */
 static void pgauditlogtofile_close_file(void);
@@ -89,13 +97,7 @@ void PgAuditLogToFile_emit_log(ErrorData *edata)
 
     // Scenarios not contemplated above will be ignored
     if (exclude_nchars >= 0)
-    {
-      if (!pgauditlogtofile_record_audit(edata, exclude_nchars))
-      {
-        // ERROR: failed to record in audit, record in server log
-        edata->output_to_server = true;
-      }
-    }
+      pgauditlogtofile_record_audit(edata, exclude_nchars);
   }
 
   if (pgaudit_ltf_prev_emit_log_hook)
@@ -300,6 +302,8 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
 {
   StringInfoData buf;
   bool success = false;
+  bool compression_success = true;
+  char *data_to_write;
   int rc = 0;
 
   initStringInfo(&buf);
@@ -313,19 +317,145 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
   if (pgaudit_ltf_file_handler == -1)
     pgauditlogtofile_open_file();
 
+  data_to_write = buf.data;
+
   if (pgaudit_ltf_file_handler != -1)
   {
-    rc = write(pgaudit_ltf_file_handler, buf.data, buf.len);
-    if (rc == buf.len)
-      success = true;
-    else
+    if (guc_pgaudit_ltf_log_compression != PGAUDIT_LTF_COMPRESSION_OFF)
     {
-      ereport(LOG_SERVER_ONLY,
-              (errcode_for_file_access(),
-               errmsg("could not write audit log file \"%s\": %m", filename_in_use)));
-      pgauditlogtofile_close_file();
+      size_t compressed_len_bound = 0;
+
+      /* Calculate buffer size */
+      switch (guc_pgaudit_ltf_log_compression)
+      {
+      case PGAUDIT_LTF_COMPRESSION_GZIP:
+        compressed_len_bound = compressBound(buf.len);
+        break;
+      case PGAUDIT_LTF_COMPRESSION_LZ4:
+        compressed_len_bound = LZ4F_compressFrameBound(buf.len, NULL);
+        break;
+      case PGAUDIT_LTF_COMPRESSION_ZSTD:
+        compressed_len_bound = ZSTD_compressBound(buf.len);
+        break;
+      }
+
+      /* Ensure buffer is large enough */
+      if (pgaudit_ltf_zbuf == NULL || pgaudit_ltf_zbuf_len < compressed_len_bound)
+      {
+        if (pgaudit_ltf_zbuf)
+          pfree(pgaudit_ltf_zbuf);
+        pgaudit_ltf_zbuf_len = compressed_len_bound;
+        pgaudit_ltf_zbuf = (char *)MemoryContextAlloc(TopMemoryContext, pgaudit_ltf_zbuf_len);
+      }
+
+      /* Compress */
+      switch (guc_pgaudit_ltf_log_compression)
+      {
+      case PGAUDIT_LTF_COMPRESSION_GZIP:
+      {
+        int ret;
+        if (pgaudit_ltf_zstream == NULL)
+        {
+          pgaudit_ltf_zstream = (z_stream *)MemoryContextAlloc(TopMemoryContext, sizeof(z_stream));
+          pgaudit_ltf_zstream->zalloc = Z_NULL;
+          pgaudit_ltf_zstream->zfree = Z_NULL;
+          pgaudit_ltf_zstream->opaque = Z_NULL;
+          ret = deflateInit2(pgaudit_ltf_zstream, Z_BEST_SPEED, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);
+          if (ret != Z_OK)
+          {
+            ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not initialize compression stream: zlib error %d", ret)));
+            pfree(pgaudit_ltf_zstream);
+            pgaudit_ltf_zstream = NULL;
+            compression_success = false;
+          }
+        }
+        else
+        {
+          deflateReset(pgaudit_ltf_zstream);
+        }
+
+        if (pgaudit_ltf_zstream)
+        {
+          pgaudit_ltf_zstream->avail_in = buf.len;
+          pgaudit_ltf_zstream->next_in = (Bytef *)buf.data;
+          pgaudit_ltf_zstream->avail_out = pgaudit_ltf_zbuf_len;
+          pgaudit_ltf_zstream->next_out = (Bytef *)pgaudit_ltf_zbuf;
+
+          ret = deflate(pgaudit_ltf_zstream, Z_FINISH);
+          if (ret != Z_STREAM_END)
+          {
+            ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not compress audit record: zlib error %d", ret)));
+            compression_success = false;
+          }
+          else
+          {
+            buf.len = pgaudit_ltf_zstream->total_out;
+            data_to_write = pgaudit_ltf_zbuf;
+          }
+        }
+        break;
+      }
+      case PGAUDIT_LTF_COMPRESSION_LZ4:
+      {
+        size_t cSize = LZ4F_compressFrame(pgaudit_ltf_zbuf, pgaudit_ltf_zbuf_len, buf.data, buf.len, NULL);
+        if (LZ4F_isError(cSize))
+        {
+          ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not compress audit record: lz4 error %s", LZ4F_getErrorName(cSize))));
+          compression_success = false;
+        }
+        else
+        {
+          buf.len = cSize;
+          data_to_write = pgaudit_ltf_zbuf;
+        }
+        break;
+      }
+      case PGAUDIT_LTF_COMPRESSION_ZSTD:
+      {
+        size_t cSize;
+        if (pgaudit_ltf_zstd_cctx == NULL)
+        {
+          pgaudit_ltf_zstd_cctx = ZSTD_createCCtx();
+        }
+        cSize = ZSTD_compressCCtx(pgaudit_ltf_zstd_cctx, pgaudit_ltf_zbuf, pgaudit_ltf_zbuf_len, buf.data, buf.len, 1);
+        if (ZSTD_isError(cSize))
+        {
+          ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not compress audit record: zstd error %s", ZSTD_getErrorName(cSize))));
+          compression_success = false;
+        }
+        else
+        {
+          buf.len = cSize;
+          data_to_write = pgaudit_ltf_zbuf;
+        }
+        break;
+      }
+      default:
+        break;
+      }
+    }
+
+    if (compression_success)
+    {
+      rc = write(pgaudit_ltf_file_handler, data_to_write, buf.len);
+      if (rc == buf.len)
+      {
+        success = true;
+      }
+      else
+      {
+        ereport(LOG_SERVER_ONLY,
+                (errcode_for_file_access(),
+                 errmsg("could not write audit log file \"%s\": %m", filename_in_use)));
+        pgauditlogtofile_close_file();
+      }
     }
   }
+
+  /* failed write, do it on server here because the original log record has been modified in place */
+  if (!success)
+    ereport(LOG_SERVER_ONLY, (errmsg("%s", buf.data)));
+
   pfree(buf.data);
 
   return success;

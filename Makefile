@@ -9,9 +9,9 @@ PGFILEDESC = "pgAuditLogToFile - An addon for pgAudit logging extension for Post
 GCC_VERSION := $(shell gcc -dumpversion | cut -f1 -d.)
 
 ifeq ($(shell [ $(GCC_VERSION) -ge 10 ] && echo true),true)
-PG_CFLAGS += -fanalyzer -Wall -Wdiscarded-qualifiers
+PG_CFLAGS += -fanalyzer -Wall -Wdiscarded-qualifiers -lz -llz4 -lzstd
 else
-PG_CFLAGS += -Wall -Wdiscarded-qualifiers
+PG_CFLAGS += -Wall -Wdiscarded-qualifiers -lz -llz4 -lzstd
 endif
 
 PG_CONFIG = pg_config
