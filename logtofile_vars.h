@@ -51,6 +51,7 @@ extern int guc_pgaudit_ltf_log_format;
 extern bool guc_pgaudit_ltf_log_execution_time;
 extern bool guc_pgaudit_ltf_log_execution_memory;
 extern int guc_pgaudit_ltf_log_compression;
+extern int guc_pgaudit_ltf_log_compression_level;
 
 // Audit log file handler
 extern int pgaudit_ltf_file_handler;

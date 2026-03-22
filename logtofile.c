@@ -153,6 +153,14 @@ void _PG_init(void)
       PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
       NULL, NULL, NULL);
 
+  DefineCustomIntVariable(
+      "pgaudit.log_compression_level",
+      "Compression level (0=default, gzip: 1-9, lz4: 1-12, zstd: 1-22).", NULL,
+      &guc_pgaudit_ltf_log_compression_level,
+      0, 0, 22,
+      PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_SUPERUSER_ONLY,
+      NULL, NULL, NULL);
+
   EmitWarningsOnPlaceholders("pgauditlogtofile");
 
   /* background worker */

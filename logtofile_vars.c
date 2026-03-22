@@ -24,6 +24,7 @@ int guc_pgaudit_ltf_log_format = PGAUDIT_LTF_FORMAT_CSV;              // Default
 bool guc_pgaudit_ltf_log_execution_time = false;                      // Default: off
 bool guc_pgaudit_ltf_log_execution_memory = false;                    // Default: off
 int guc_pgaudit_ltf_log_compression = PGAUDIT_LTF_COMPRESSION_OFF;    // Default: off
+int guc_pgaudit_ltf_log_compression_level = 0;                        // Default: 0 (Library default)
 
 // Audit log file handler
 int pgaudit_ltf_file_handler = -1;

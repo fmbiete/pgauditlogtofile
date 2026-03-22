@@ -138,13 +138,12 @@ Compress the audit log file as independent streams, the resulting file will be a
 **Performance**: **lz4** is recommended for high load as it provides the best performance (even faster than uncompressed). **zstd** offers a good balance between speed and compression ratio.
 
 #### Performance Benchmark (Transaction per second):
-Measured with pgbench: 
+Measured with pgbench and log_compression_level = 0 (default library behavior): 
 ```
 pgbench --client=10 --jobs=2 --time=60 --select-only
 ```
 
 _Don't consider the tps, your system/configuration will provide different results. The impact ratio is what you should be interested in._
-
 
 
 | log_compression value   | impact ratio (% degradation) | tps (without initial connection time)
@@ -153,6 +152,17 @@ _Don't consider the tps, your system/configuration will provide different result
 | gzip                    | 18.77% | 92387.953737
 | lz4                     | -0.96% | 114795.996736
 | zstd                    |  4.40% | 108699.232205
+
+
+### pgaudit.log_compression_level
+Specifies the compression level for the selected compression algorithm.
+
+**Scope**: System
+
+**Default**: 0 (Default library behavior)
+
+**Range**: 0 to 22
+
 
 
 
