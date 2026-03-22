@@ -44,8 +44,8 @@ void *PgAuditLogToFile_autoclose_run(void *arg)
     diff = secs / SECS_PER_MINUTE;
     if (diff >= guc_pgaudit_ltf_auto_close_minutes)
     {
-      fclose(pgaudit_ltf_file_handler);
-      pgaudit_ltf_file_handler = NULL;
+      close(pgaudit_ltf_file_handler);
+      pgaudit_ltf_file_handler = -1;
       *autoclose_thread_status_debug = 3; // file closed
       break;
     }

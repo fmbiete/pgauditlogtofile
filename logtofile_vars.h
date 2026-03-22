@@ -38,7 +38,7 @@ extern bool guc_pgaudit_ltf_log_execution_time;
 extern bool guc_pgaudit_ltf_log_execution_memory;
 
 // Audit log file handler
-extern FILE *pgaudit_ltf_file_handler;
+extern int pgaudit_ltf_file_handler;
 
 // Background auto-close file handler
 extern pg_atomic_flag pgaudit_ltf_autoclose_flag_thread;

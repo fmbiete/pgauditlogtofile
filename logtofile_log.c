@@ -29,6 +29,8 @@
 #include <utils/timestamp.h>
 
 #include <pthread.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <sys/stat.h>
 
 /* Defines */
@@ -108,10 +110,10 @@ void PgAuditLogToFile_emit_log(ErrorData *edata)
  */
 static void pgauditlogtofile_close_file(void)
 {
-  if (pgaudit_ltf_file_handler)
+  if (pgaudit_ltf_file_handler != -1)
   {
-    fclose(pgaudit_ltf_file_handler);
-    pgaudit_ltf_file_handler = NULL;
+    close(pgaudit_ltf_file_handler);
+    pgaudit_ltf_file_handler = -1;
   }
 }
 
@@ -140,7 +142,7 @@ static bool pgauditlogtofile_is_enabled(void)
  */
 static bool pgauditlogtofile_is_open_file(void)
 {
-  if (pgaudit_ltf_file_handler)
+  if (pgaudit_ltf_file_handler != -1)
     return true;
   else
     return false;
@@ -211,18 +213,12 @@ static bool pgauditlogtofile_open_file(void)
    */
   oumask = umask(
       (mode_t)((~(guc_pgaudit_ltf_log_file_mode | S_IWUSR)) & (S_IRWXU | S_IRWXG | S_IRWXO)));
-  pgaudit_ltf_file_handler = fopen(shm_filename, "a");
+  pgaudit_ltf_file_handler = open(shm_filename, O_CREAT | O_WRONLY | O_APPEND | PG_BINARY, guc_pgaudit_ltf_log_file_mode);
   umask(oumask);
 
-  if (pgaudit_ltf_file_handler)
+  if (pgaudit_ltf_file_handler != -1)
   {
     opened = true;
-    /* 128K buffer and flush on demand or when full -> attempt to use only 1 IO operation per record */
-    setvbuf(pgaudit_ltf_file_handler, NULL, _IOFBF, 131072);
-#ifdef WIN32
-    /* use CRLF line endings on Windows */
-    _setmode(_fileno(file_handler), _O_TEXT);
-#endif
     // File open, we update the filename we are using
     strcpy(filename_in_use, shm_filename);
   }
@@ -314,30 +310,19 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
     PgAuditLogToFile_json_audit(&buf, edata, exclude_nchars);
 
   // auto-close maybe has closed the file
-  if (!pgaudit_ltf_file_handler)
+  if (pgaudit_ltf_file_handler == -1)
     pgauditlogtofile_open_file();
 
-  if (pgaudit_ltf_file_handler)
+  if (pgaudit_ltf_file_handler != -1)
   {
-    /* multi-process write, move to end*/
-    if (fseek(pgaudit_ltf_file_handler, 0L, SEEK_END) == 0)
-    {
-      rc = fwrite(buf.data, 1, buf.len, pgaudit_ltf_file_handler);
-      if (rc == buf.len && fflush(pgaudit_ltf_file_handler) == 0)
-        success = true;
-      else
-      {
-        ereport(LOG_SERVER_ONLY,
-                (errcode_for_file_access(),
-                 errmsg("could not write audit log file \"%s\": %m", filename_in_use)));
-        pgauditlogtofile_close_file();
-      }
-    }
+    rc = write(pgaudit_ltf_file_handler, buf.data, buf.len);
+    if (rc == buf.len)
+      success = true;
     else
     {
       ereport(LOG_SERVER_ONLY,
               (errcode_for_file_access(),
-               errmsg("could not seek to end of audit log file \"%s\": %m", filename_in_use)));
+               errmsg("could not write audit log file \"%s\": %m", filename_in_use)));
       pgauditlogtofile_close_file();
     }
   }

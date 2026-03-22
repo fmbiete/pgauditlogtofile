@@ -25,7 +25,7 @@ bool guc_pgaudit_ltf_log_execution_time = false;   // Default: off
 bool guc_pgaudit_ltf_log_execution_memory = false; // Default: off
 
 // Audit log file handler
-FILE *pgaudit_ltf_file_handler = NULL;
+int pgaudit_ltf_file_handler = -1;
 
 // Background auto-close file handler
 pg_atomic_flag pgaudit_ltf_autoclose_flag_thread;
