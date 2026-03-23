@@ -13,9 +13,16 @@ make install USE_PGXS=1
 
 ## Installation
 - Build the extension
-- Add pgauditlogtofile to "shared_preload_libraries" in postgresql.conf
+- Install pgaudit extension
+- Add pgaudit to _shared_preload_libraries_ in postgresql.conf
+- Add pgauditlogtofile to _shared_preload_libraries_ in postgresql.conf, after pgaudit
 - Restart PostgreSQL to reload new shared library
 - Create extension in postgres database (like pgaudit we don't need to create it in all the databases)
+
+## Test
+```
+make installcheck
+```
 
 ```
 postgres=# CREATE EXTENSION pgauditlogtofile;

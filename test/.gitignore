@@ -1,0 +1,4 @@
+.vagrant
+results
+regression.diffs
+regression.out
