@@ -18,7 +18,6 @@
 
 #include <time.h>
 
-#include "logtofile_autoclose.h"
 #include "logtofile_connect.h"
 #include "logtofile_filename.h"
 #include "logtofile_guc.h"
@@ -141,19 +140,13 @@ void PgAuditLogToFile_shmem_startup(void)
   }
   LWLockRelease(AddinShmemInitLock);
 
-  if (IsUnderPostmaster)
-  {
-    // Backend
-    pg_atomic_init_flag(&pgaudit_ltf_autoclose_flag_thread);
-  }
-  else
+  if (!IsUnderPostmaster)
   {
     // Postmaster
     on_shmem_exit(PgAuditLogToFile_shmem_shutdown, (Datum)0);
   }
 
-  if (!found)
-    ereport(LOG, (errmsg("pgauditlogtofile extension initialized")));
+  ereport(LOG, (errmsg("pgauditlogtofile extension initialized")));
 }
 
 /**
