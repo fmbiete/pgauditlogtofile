@@ -34,7 +34,6 @@
 
 #include <utils/guc.h>
 #include <datatype/timestamp.h>
-#include <pgstat.h>
 
 static const struct config_enum_entry format_options[] = {
     {"csv", PGAUDIT_LTF_FORMAT_CSV, false},
