@@ -189,11 +189,13 @@ void PgAuditLogToFile_calculate_current_filename(void)
   LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
   memset(pgaudit_ltf_shm->filename, 0, sizeof(pgaudit_ltf_shm->filename));
   strcpy(pgaudit_ltf_shm->filename, filename);
+  LWLockRelease(pgaudit_ltf_shm->lock);
+
+  /* increase generation */
   if (pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation) == PG_UINT32_MAX)
     pg_atomic_write_u32(&pgaudit_ltf_shm->rotation_generation, 0);
   else
     pg_atomic_add_fetch_u32(&pgaudit_ltf_shm->rotation_generation, 1);
-  LWLockRelease(pgaudit_ltf_shm->lock);
 
   pfree(filename);
 }
