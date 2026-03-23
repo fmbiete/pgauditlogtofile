@@ -254,22 +254,16 @@ static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nc
   current_generation = pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation);
   if (current_generation != pgaudit_ltf_local_rotation_generation || strlen(filename_in_use) == 0)
   {
+    pgauditlogtofile_close_file();
+
     LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
     strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
     LWLockRelease(pgaudit_ltf_shm->lock);
 
     pgaudit_ltf_local_rotation_generation = current_generation;
 
-    ereport(DEBUG5, (errmsg("pgauditlogtofile record audit in %s (shm %s)",
-                            filename_in_use, shm_filename)));
-    /* do we need to rotate? */
-    if (strlen(shm_filename) > 0 && strcmp(filename_in_use, shm_filename) != 0)
-    {
-      ereport(DEBUG3, (
-                          errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
-                                 shm_filename, filename_in_use)));
-      pgauditlogtofile_close_file();
-    }
+    ereport(DEBUG3, (errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
+                            shm_filename, filename_in_use)));
   }
 
   if (!pgauditlogtofile_is_open_file() && !pgauditlogtofile_open_file())

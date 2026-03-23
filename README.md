@@ -20,13 +20,26 @@ make install USE_PGXS=1
 - Create extension in postgres database (like pgaudit we don't need to create it in all the databases)
 
 ## Test
+**pg_regres**
 ```
 make installcheck
 ```
 
+**Vagrant**
 ```
-postgres=# CREATE EXTENSION pgauditlogtofile;
+cd test
+vagrant plugin install vagrant-vbguest
+vagrant up
 ```
+
+## Signals
+**pgauditlogtofile** listen to multiple signals:
+- SIGHUP / pg_reload_conf() : reloads the configuration and triggers a complete rotation.
+- SIGUSR1 / pg_rotate_logfile() : closes and opens the audit files, but doesn't trigger a rotation.
+
+**HINT**: Use SIGUSR1 if you find inactive sessions holding file handles and you don't want to enable the auto-close feature.
+
+
 
 ## Configuration
 
@@ -173,7 +186,7 @@ Specifies the compression level for the selected compression algorithm.
 
 
 
-### pgAudit Log To File - Record format
+## pgAudit Log To File - Record format
 ```
 CREATE FOREIGN TABLE pgauditlogtofile_extern (
   ----fields from postgresql session----
@@ -222,9 +235,4 @@ OPTIONS (filename 'audit_log.csv', format 'csv');
 ```
 
 
-### Test
-```
-cd test
-vagrant plugin install vagrant-vbguest
-vagrant up
-```
+

@@ -22,6 +22,7 @@
 #include <storage/shm_mq.h>
 #include <storage/shm_toc.h>
 #include <storage/shmem.h>
+#include <storage/procsignal.h>
 #if (PG_VERSION_NUM >= 140000)
 #include <utils/backend_status.h>
 #include <utils/wait_event.h>
@@ -40,9 +41,11 @@
 
 /* flags set by signal handlers */
 static volatile sig_atomic_t got_sigterm = false;
+static volatile sig_atomic_t got_sigusr1 = false;
 
 /* forward declaration private functions */
 static void pgauditlogtofile_sigterm(SIGNAL_ARGS);
+static void pgauditlogtofile_sigusr1(SIGNAL_ARGS);
 
 /**
  * @brief Main entry point for the background worker
@@ -57,6 +60,7 @@ void PgAuditLogToFileMain(Datum arg)
   pqsignal(SIGHUP, SignalHandlerForConfigReload);
   pqsignal(SIGINT, SIG_IGN);
   pqsignal(SIGTERM, pgauditlogtofile_sigterm);
+  pqsignal(SIGUSR1, pgauditlogtofile_sigusr1);
 
   BackgroundWorkerUnblockSignals();
 
@@ -93,6 +97,14 @@ void PgAuditLogToFileMain(Datum arg)
       ProcessConfigFile(PGC_SIGHUP);
       PgAuditLogToFile_calculate_current_filename();
       PgAuditLogToFile_set_next_rotation_time();
+      ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
+    }
+    else if (got_sigusr1)
+    {
+      got_sigusr1 = false;
+      ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop got sigusr1 rotation %s", pgaudit_ltf_shm->filename)));
+      PgAuditLogToFile_calculate_current_filename();
+      /* don't calculate next rotation, because we are not rotating, just reopening files */
       ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
     }
     else
@@ -139,4 +151,18 @@ pgauditlogtofile_sigterm(SIGNAL_ARGS)
   {
     SetLatch(&MyProc->procLatch);
   }
+}
+
+/**
+ * @brief Signal handler for SIGUSR1
+ * @param signal_arg: signal number
+ * @return void
+ */
+static void
+pgauditlogtofile_sigusr1(SIGNAL_ARGS)
+{
+  int save_errno = errno;
+  got_sigusr1 = true;
+  procsignal_sigusr1_handler(postgres_signal_arg);
+  errno = save_errno;
 }
