@@ -23,12 +23,8 @@
 #include <storage/shm_toc.h>
 #include <storage/shmem.h>
 #include <storage/procsignal.h>
-#if (PG_VERSION_NUM >= 140000)
 #include <utils/backend_status.h>
 #include <utils/wait_event.h>
-#else
-#include <pgstat.h>
-#endif
 #include <utils/guc.h>
 #include <utils/memutils.h>
 #include <utils/timestamp.h>
