@@ -52,6 +52,9 @@ ExecutorStart_hook_type pgaudit_ltf_prev_ExecutorStart = NULL;
 ExecutorRun_hook_type pgaudit_ltf_prev_ExecutorRun = NULL;
 ExecutorEnd_hook_type pgaudit_ltf_prev_ExecutorEnd = NULL;
 
+// Signal handlers
+pqsigfunc pgaudit_ltf_prev_sigusr1_handler = NULL;
+
 // Shared memory
 PgAuditLogToFileShm *pgaudit_ltf_shm = NULL;
 pg_atomic_flag pgaudit_ltf_flag_shutdown;

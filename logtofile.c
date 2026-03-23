@@ -175,16 +175,13 @@ void _PG_init(void)
 
   RegisterBackgroundWorker(&worker);
 
-  /* Executor hooks for execution measurement */
-  if (guc_pgaudit_ltf_log_execution_time || guc_pgaudit_ltf_log_execution_memory)
-  {
-    pgaudit_ltf_prev_ExecutorStart = ExecutorStart_hook;
-    ExecutorStart_hook = PgAuditLogToFile_ExecutorStart_Hook;
-    pgaudit_ltf_prev_ExecutorEnd = ExecutorEnd_hook;
-    ExecutorEnd_hook = PgAuditLogToFile_ExecutorEnd_Hook;
-    pgaudit_ltf_prev_ExecutorRun = ExecutorRun_hook;
-    ExecutorRun_hook = PgAuditLogToFile_ExecutorRun_Hook;
-  }
+  /* Executor hooks */
+  pgaudit_ltf_prev_ExecutorStart = ExecutorStart_hook;
+  ExecutorStart_hook = PgAuditLogToFile_ExecutorStart_Hook;
+  pgaudit_ltf_prev_ExecutorEnd = ExecutorEnd_hook;
+  ExecutorEnd_hook = PgAuditLogToFile_ExecutorEnd_Hook;
+  pgaudit_ltf_prev_ExecutorRun = ExecutorRun_hook;
+  ExecutorRun_hook = PgAuditLogToFile_ExecutorRun_Hook;
 
 /* backend hooks */
 #if (PG_VERSION_NUM >= 150000)
@@ -211,10 +208,6 @@ void _PG_fini(void)
   emit_log_hook = pgaudit_ltf_prev_emit_log_hook;
   shmem_startup_hook = pgaudit_ltf_prev_shmem_startup_hook;
 
-  /* Executor hooks for execution measurement */
-  if (guc_pgaudit_ltf_log_execution_time || guc_pgaudit_ltf_log_execution_memory)
-  {
-    ExecutorStart_hook = pgaudit_ltf_prev_ExecutorStart;
-    ExecutorEnd_hook = pgaudit_ltf_prev_ExecutorEnd;
-  }
+  ExecutorStart_hook = pgaudit_ltf_prev_ExecutorStart;
+  ExecutorEnd_hook = pgaudit_ltf_prev_ExecutorEnd;
 }

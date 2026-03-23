@@ -35,9 +35,11 @@ vagrant up
 ## Signals
 **pgauditlogtofile** listen to multiple signals:
 - SIGHUP / pg_reload_conf() : reloads the configuration and triggers a complete rotation.
-- SIGUSR1 / pg_rotate_logfile() : closes and opens the audit files, but doesn't trigger a rotation.
+- SIGUSR1 (against pgauditlogtofile background worker) : closes the audit log file handler in all backends.
 
 **HINT**: Use SIGUSR1 if you find inactive sessions holding file handles and you don't want to enable the auto-close feature.
+
+**ATTENTION**: pg_rotate_logfile() will not rotate or force a close/open for the audit file, because the audit file handles are hold by the backends.
 
 
 

@@ -19,6 +19,7 @@
 #include <storage/latch.h>
 #include <storage/lwlock.h>
 #include <storage/proc.h>
+#include <storage/procarray.h>
 #include <storage/shm_mq.h>
 #include <storage/shm_toc.h>
 #include <storage/shmem.h>
@@ -75,6 +76,36 @@ void PgAuditLogToFileMain(Datum arg)
 
     CHECK_FOR_INTERRUPTS();
 
+    /* Propagate SIGUSR1 from the bwg to all backends to force an audit file descriptor closure */
+    if (got_sigusr1)
+    {
+      int i;
+      PGPROC *proc;
+
+      got_sigusr1 = false;
+      ereport(LOG, (errmsg("pgauditlogtofile bgw: received SIGUSR1, propagating to backends")));
+
+      /*
+       * Acquire a shared lock on the ProcArray to safely iterate
+       * through active backends.
+       */
+      LWLockAcquire(ProcArrayLock, LW_SHARED);
+
+      for (i = 0; i < ProcGlobal->allProcCount; i++)
+      {
+        proc = &ProcGlobal->allProcs[i];
+
+        /* Don't signal yourself (the background worker) */
+        if (proc->pid != MyProcPid && proc->pid != 0)
+        {
+          /* Send the actual signal via the OS */
+          kill(proc->pid, SIGUSR1);
+        }
+      }
+
+      LWLockRelease(ProcArrayLock);
+    }
+
     if (guc_pgaudit_ltf_log_rotation_age < 5)
     {
       // very small rotation, wake up frequently - this has a performance impact,
@@ -85,6 +116,7 @@ void PgAuditLogToFileMain(Datum arg)
     {
       sleep_ms = SECS_PER_MINUTE * 1000;
     }
+
     ereport(DEBUG5, (errmsg("pgauditlogtofile bgw loop")));
     if (ConfigReloadPending)
     {
@@ -93,14 +125,6 @@ void PgAuditLogToFileMain(Datum arg)
       ProcessConfigFile(PGC_SIGHUP);
       PgAuditLogToFile_calculate_current_filename();
       PgAuditLogToFile_set_next_rotation_time();
-      ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
-    }
-    else if (got_sigusr1)
-    {
-      got_sigusr1 = false;
-      ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop got sigusr1 rotation %s", pgaudit_ltf_shm->filename)));
-      PgAuditLogToFile_calculate_current_filename();
-      /* don't calculate next rotation, because we are not rotating, just reopening files */
       ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
     }
     else
@@ -135,21 +159,6 @@ void PgAuditLogToFileMain(Datum arg)
 /* private functions */
 
 /**
- * @brief Signal handler for SIGHUP
- * @param signal_arg: signal number
- * @return void
- */
-static void
-pgauditlogtofile_sigterm(SIGNAL_ARGS)
-{
-  got_sigterm = true;
-  if (MyProc != NULL)
-  {
-    SetLatch(&MyProc->procLatch);
-  }
-}
-
-/**
  * @brief Signal handler for SIGUSR1
  * @param signal_arg: signal number
  * @return void
@@ -159,6 +168,22 @@ pgauditlogtofile_sigusr1(SIGNAL_ARGS)
 {
   int save_errno = errno;
   got_sigusr1 = true;
-  procsignal_sigusr1_handler(postgres_signal_arg);
+  if (MyProc)
+    SetLatch(&MyProc->procLatch);
+  errno = save_errno;
+}
+
+/**
+ * @brief Signal handler for SIGHUP
+ * @param signal_arg: signal number
+ * @return void
+ */
+static void
+pgauditlogtofile_sigterm(SIGNAL_ARGS)
+{
+  int save_errno = errno;
+  got_sigterm = true;
+  if (MyProc != NULL)
+    SetLatch(&MyProc->procLatch);
   errno = save_errno;
 }

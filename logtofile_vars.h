@@ -19,6 +19,7 @@
 #include <pgtime.h>
 #include <port/atomics.h>
 #include <portability/instr_time.h>
+#include <signal.h>
 #include <storage/ipc.h>
 #include <storage/lwlock.h>
 #include <utils/timestamp.h>
@@ -78,6 +79,9 @@ extern emit_log_hook_type pgaudit_ltf_prev_emit_log_hook;
 extern ExecutorStart_hook_type pgaudit_ltf_prev_ExecutorStart;
 extern ExecutorRun_hook_type pgaudit_ltf_prev_ExecutorRun;
 extern ExecutorEnd_hook_type pgaudit_ltf_prev_ExecutorEnd;
+
+// Signal handlers
+extern pqsigfunc pgaudit_ltf_prev_sigusr1_handler;
 
 // Shared Memory types
 typedef struct PgAuditLogToFilePrefix
