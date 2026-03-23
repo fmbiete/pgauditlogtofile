@@ -41,17 +41,6 @@
 #define PGAUDIT_PREFIX_LINE "AUDIT: "
 #define PGAUDIT_PREFIX_LINE_LENGTH sizeof(PGAUDIT_PREFIX_LINE) - 1
 
-/*
- * We really want line-buffered mode for logfile output, but Windows does
- * not have it, and interprets _IOLBF as _IOFBF (bozos).  So use _IONBF
- * instead on Windows.
- */
-#ifdef WIN32
-#define LBF_MODE _IONBF
-#else
-#define LBF_MODE _IOLBF
-#endif
-
 /* variables to use only in this unit */
 static char filename_in_use[MAXPGPATH];
 static int autoclose_thread_status_debug = 0; // 0: new proc, 1: th running, 2: th running sleep used, 3: th closed
