@@ -24,7 +24,7 @@
 #include "logtofile_vars.h"
 
 /* Extracted from src/backend/po */
-const char *postgresConnMsg[] = {
+static const char *postgresConnMsg[] = {
     "connection received: host=%s port=%s",
     "connection received: host=%s",
     "connection authorized: user=%s",
@@ -56,7 +56,7 @@ const char *postgresConnMsg[] = {
 };
 
 /* Extracted from src/backend/po */
-const char *postgresDisconnMsg[] = {
+static const char *postgresDisconnMsg[] = {
     "disconnection: session time: %d:%02d:%02d.%03d user=%s database=%s host=%s%s%s"};
 
 #if (PG_VERSION_NUM >= 150000)
