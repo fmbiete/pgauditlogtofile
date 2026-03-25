@@ -1,3 +1,14 @@
+/*-------------------------------------------------------------------------
+ *
+ * logtofile_execution_memory.c
+ *      Partial hooks to measure memory footprint of execution
+ *
+ * Copyright (c) 2026, Francisco Miguel Biete Banon
+ *
+ * This code is released under the PostgreSQL licence, as given at
+ *  http://www.postgresql.org/about/licence/
+ *-------------------------------------------------------------------------
+ */
 #include "logtofile_execution_memory.h"
 
 #include "logtofile_vars.h"

@@ -1,3 +1,14 @@
+/*-------------------------------------------------------------------------
+ *
+ * logtofile_execution_hook.c
+ *      Functions to add Execution Hooks wrappers
+ *
+ * Copyright (c) 2026, Francisco Miguel Biete Banon
+ *
+ * This code is released under the PostgreSQL licence, as given at
+ *  http://www.postgresql.org/about/licence/
+ *-------------------------------------------------------------------------
+ */
 #include "logtofile_execution_hook.h"
 
 #include "logtofile_execution_memory.h"

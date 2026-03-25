@@ -1,3 +1,14 @@
+/*-------------------------------------------------------------------------
+ *
+ * logtofile_execution_time.c
+ *      Partial hooks to measure execution time
+ *
+ * Copyright (c) 2026, Francisco Miguel Biete Banon
+ *
+ * This code is released under the PostgreSQL licence, as given at
+ *  http://www.postgresql.org/about/licence/
+ *-------------------------------------------------------------------------
+ */
 #include "logtofile_execution_time.h"
 #include "logtofile_vars.h"
 
