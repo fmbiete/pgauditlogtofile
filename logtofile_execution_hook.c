@@ -15,9 +15,9 @@
 #include "logtofile_execution_time.h"
 #include "logtofile_vars.h"
 #include "logtofile_signal_handler.h"
-#include <libpq/pqsignal.h>
 
 #include <executor/executor.h>
+#include <port.h>
 
 static bool pgaudit_ltf_handler_setup = false;
 
@@ -25,8 +25,12 @@ void PgAuditLogToFile_ExecutorStart_Hook(QueryDesc *queryDesc, int eflags)
 {
   if (!pgaudit_ltf_handler_setup)
   {
+#if PG_VERSION_NUM >= 180000
+    pqsignal(SIGUSR1, PgAuditLogToFile_SIGUSR1);
+#else
     /* setup a signal handler for SIGUSR1 in the backend, and save the existing */
     pgaudit_ltf_prev_sigusr1_handler = pqsignal(SIGUSR1, PgAuditLogToFile_SIGUSR1);
+#endif    
     pgaudit_ltf_handler_setup = true; /* only once */
   }
 
