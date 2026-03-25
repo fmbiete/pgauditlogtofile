@@ -14,6 +14,7 @@
 #include "logtofile_vars.h"
 
 #include <errno.h>
+#include <unistd.h>
 
 /* public methods */
 
