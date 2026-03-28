@@ -106,7 +106,7 @@ void PgAuditLogToFileMain(Datum arg)
       LWLockRelease(ProcArrayLock);
     }
 
-    if (guc_pgaudit_ltf_log_rotation_age < 5)
+    if (guc_pgaudit_ltf_log_rotation_age > 0 && guc_pgaudit_ltf_log_rotation_age < 5)
     {
       // very small rotation, wake up frequently - this has a performance impact,
       // but rotation every a few minutes should only be done for testing

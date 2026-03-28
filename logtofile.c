@@ -92,7 +92,7 @@ void _PG_init(void)
       "pgaudit.log_rotation_age",
       "Automatic spool file rotation will occur after N minutes", NULL,
       &guc_pgaudit_ltf_log_rotation_age,
-      HOURS_PER_DAY * MINS_PER_HOUR, 1, INT_MAX / SECS_PER_MINUTE,
+      HOURS_PER_DAY * MINS_PER_HOUR, 0, INT_MAX / SECS_PER_MINUTE,
       PGC_SIGHUP, GUC_NOT_IN_SAMPLE | GUC_UNIT_MIN | GUC_SUPERUSER_ONLY,
       NULL, NULL, NULL);
 
