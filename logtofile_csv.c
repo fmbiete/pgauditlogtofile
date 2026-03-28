@@ -89,7 +89,20 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
 
     psdisp = get_ps_display(&displen);
     if (psdisp && displen > 0)
-      pgauditlogtofile_append_csv_value(buf, psdisp);
+    {
+      if (exclude_nchars == 0)
+      {
+        if (pg_strncasecmp(edata->message, "disconnection", 13) == 0)
+          pgauditlogtofile_append_csv_value(buf, "disconnection");
+        else if (pg_strncasecmp(edata->message, "connection authenticated", 24) == 0 ||
+                 pg_strncasecmp(edata->message, "connection authorized", 21) == 0)
+          pgauditlogtofile_append_csv_value(buf, "authentication");
+        else
+          pgauditlogtofile_append_csv_value(buf, psdisp);
+      }
+      else
+        pgauditlogtofile_append_csv_value(buf, psdisp);
+    }
   }
   appendStringInfoCharMacro(buf, ',');
 

@@ -85,7 +85,20 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
 
     psdisp = get_ps_display(&displen);
     if (psdisp && displen > 0)
-      pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", psdisp);
+    {
+      if (exclude_nchars == 0)
+      {
+        if (pg_strncasecmp(edata->message, "disconnection", 13) == 0)
+          pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", "disconnection");
+        else if (pg_strncasecmp(edata->message, "connection authenticated", 24) == 0 ||
+                 pg_strncasecmp(edata->message, "connection authorized", 21) == 0)
+          pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", "authentication");
+        else
+          pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", psdisp);
+      }
+      else
+        pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", psdisp);
+    }
   }
 
   /* Virtual transaction id */
