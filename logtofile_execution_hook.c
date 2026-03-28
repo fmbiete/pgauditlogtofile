@@ -27,11 +27,12 @@ void PgAuditLogToFile_ExecutorStart_Hook(QueryDesc *queryDesc, int eflags)
   if (!pgaudit_ltf_handler_setup)
   {
 #if PG_VERSION_NUM >= 180000
+    /* setup a signal handler for SIGUSR1 in the backend, and hope we don't lose another */
     pqsignal(SIGUSR1, PgAuditLogToFile_SIGUSR1);
 #else
     /* setup a signal handler for SIGUSR1 in the backend, and save the existing */
     pgaudit_ltf_prev_sigusr1_handler = pqsignal(SIGUSR1, PgAuditLogToFile_SIGUSR1);
-#endif    
+#endif
     pgaudit_ltf_handler_setup = true; /* only once */
   }
 
@@ -57,10 +58,17 @@ void PgAuditLogToFile_ExecutorEnd_Hook(QueryDesc *queryDesc)
   PgAuditLogToFile_Flush_Pending();
 
   /* Reset timing and memory variables to 0 so unrelated logs (like disconnection) don't use them */
-  INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_start_time);
-  INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_end_time);
-  pgaudit_ltf_statement_memory_start = 0;
-  pgaudit_ltf_statement_memory_end = 0;
+  if (guc_pgaudit_ltf_log_execution_time)
+  {
+    INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_start_time);
+    INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_end_time);
+  }
+  if (guc_pgaudit_ltf_log_execution_memory)
+  {
+    pgaudit_ltf_statement_memory_start = 0;
+    pgaudit_ltf_statement_memory_end = 0;
+    pgaudit_ltf_statement_memory_peak = 0;
+  }
 
   if (pgaudit_ltf_prev_ExecutorEnd)
     pgaudit_ltf_prev_ExecutorEnd(queryDesc);

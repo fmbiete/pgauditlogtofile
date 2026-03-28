@@ -76,16 +76,7 @@ extern Size pgaudit_ltf_statement_memory_peak;
 // Pending audit data to capture stats at the end of execution
 typedef struct
 {
-  char *message;
-  char *detail;
-  char *hint;
-  char *context;
-  char *internalquery;
-  int internalpos;
-  int cursorpos;
-  int sqlerrcode;
-  int exclude_nchars;
-  bool hide_stmt;
+  ErrorData *edata;
   bool active;
 } PendingAudit;
 
