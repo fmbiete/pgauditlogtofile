@@ -77,43 +77,21 @@ void PgAuditLogToFile_ExecutorEnd_Hook(QueryDesc *queryDesc)
 }
 
 #if (PG_VERSION_NUM >= 180000)
+#define EX_RUN_ARGS queryDesc, direction, count
 void PgAuditLogToFile_ExecutorRun_Hook(QueryDesc *queryDesc, ScanDirection direction, uint64 count)
 #else
+#define EX_RUN_ARGS queryDesc, direction, count, execute_once
 void PgAuditLogToFile_ExecutorRun_Hook(QueryDesc *queryDesc, ScanDirection direction, uint64 count, bool execute_once)
 #endif
 {
   if (guc_pgaudit_ltf_log_execution_memory)
-  {
-#if (PG_VERSION_NUM >= 180000)
-    PgAuditLogToFile_ExecutorRun_Memory(queryDesc, direction, count);
-#else
-    PgAuditLogToFile_ExecutorRun_Memory(queryDesc, direction, count, execute_once);
-#endif
-  }
+    PgAuditLogToFile_ExecutorRun_Memory(EX_RUN_ARGS);
 
   if (pgaudit_ltf_prev_ExecutorRun)
-  {
-#if (PG_VERSION_NUM >= 180000)
-    pgaudit_ltf_prev_ExecutorRun(queryDesc, direction, count);
-#else
-    pgaudit_ltf_prev_ExecutorRun(queryDesc, direction, count, execute_once);
-#endif
-  }
+    pgaudit_ltf_prev_ExecutorRun(EX_RUN_ARGS);
   else
-  {
-#if (PG_VERSION_NUM >= 180000)
-    standard_ExecutorRun(queryDesc, direction, count);
-#else
-    standard_ExecutorRun(queryDesc, direction, count, execute_once);
-#endif
-  }
+    standard_ExecutorRun(EX_RUN_ARGS);
 
   if (guc_pgaudit_ltf_log_execution_memory)
-  {
-#if (PG_VERSION_NUM >= 180000)
-    PgAuditLogToFile_ExecutorRun_Memory(queryDesc, direction, count);
-#else
-    PgAuditLogToFile_ExecutorRun_Memory(queryDesc, direction, count, execute_once);
-#endif
-  }
+    PgAuditLogToFile_ExecutorRun_Memory(EX_RUN_ARGS);
 }
