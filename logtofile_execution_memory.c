@@ -15,9 +15,10 @@
 
 #include <utils/memutils.h>
 
-inline Size MemoryContextTotalAllocated(MemoryContext ctx) __attribute__((always_inline));
-inline MemoryContext get_query_memory_context(QueryDesc *queryDesc) __attribute__((always_inline));
-inline void update_peak_memory(Size current) __attribute__((always_inline));
+/* forward declaration private functions */
+inline static Size pgauditlogtofile_MemoryContextTotalAllocated(MemoryContext ctx) __attribute__((always_inline));
+inline static MemoryContext pgauditlogtofile_get_query_memory_context(QueryDesc *queryDesc) __attribute__((always_inline));
+inline static void pgauditlogtofile_update_peak_memory(Size current) __attribute__((always_inline));
 
 /**
  * @brief ExecutorStart hook to record the memory usage at the start of a statement.
@@ -26,9 +27,9 @@ inline void update_peak_memory(Size current) __attribute__((always_inline));
  */
 void PgAuditLogToFile_ExecutorStart_Memory(QueryDesc *queryDesc, __attribute__((unused)) int eflags)
 {
-  MemoryContext ctx = get_query_memory_context(queryDesc);
+  MemoryContext ctx = pgauditlogtofile_get_query_memory_context(queryDesc);
 
-  pgaudit_ltf_statement_memory_start = MemoryContextTotalAllocated(ctx);
+  pgaudit_ltf_statement_memory_start = pgauditlogtofile_MemoryContextTotalAllocated(ctx);
   pgaudit_ltf_statement_memory_peak = pgaudit_ltf_statement_memory_start;
   pgaudit_ltf_statement_memory_end = 0;
 }
@@ -39,10 +40,10 @@ void PgAuditLogToFile_ExecutorStart_Memory(QueryDesc *queryDesc, __attribute__((
  */
 void PgAuditLogToFile_ExecutorEnd_Memory(QueryDesc *queryDesc)
 {
-  MemoryContext ctx = get_query_memory_context(queryDesc);
+  MemoryContext ctx = pgauditlogtofile_get_query_memory_context(queryDesc);
 
-  pgaudit_ltf_statement_memory_end = MemoryContextTotalAllocated(ctx);
-  update_peak_memory(pgaudit_ltf_statement_memory_end);
+  pgaudit_ltf_statement_memory_end = pgauditlogtofile_MemoryContextTotalAllocated(ctx);
+  pgauditlogtofile_update_peak_memory(pgaudit_ltf_statement_memory_end);
 }
 
 /**
@@ -60,18 +61,20 @@ void PgAuditLogToFile_ExecutorRun_Memory(QueryDesc *queryDesc,
                                          __attribute__((unused)) bool execute_once)
 #endif
 {
-  MemoryContext ctx = get_query_memory_context(queryDesc);
-  Size current = MemoryContextTotalAllocated(ctx);
+  MemoryContext ctx = pgauditlogtofile_get_query_memory_context(queryDesc);
+  Size current = pgauditlogtofile_MemoryContextTotalAllocated(ctx);
 
-  update_peak_memory(current);
+  pgauditlogtofile_update_peak_memory(current);
 }
+
+/* private functions */
 
 /**
  * @brief Obtains memory allocated
  * @param ctx
  * @return Size
  */
-Size MemoryContextTotalAllocated(MemoryContext ctx)
+Size pgauditlogtofile_MemoryContextTotalAllocated(MemoryContext ctx)
 {
   if (ctx == NULL)
     return 0;
@@ -84,7 +87,7 @@ Size MemoryContextTotalAllocated(MemoryContext ctx)
  * @param queryDesc
  * @return MemoryContext
  */
-MemoryContext get_query_memory_context(QueryDesc *queryDesc)
+MemoryContext pgauditlogtofile_get_query_memory_context(QueryDesc *queryDesc)
 {
   return (queryDesc && queryDesc->estate) ? queryDesc->estate->es_query_cxt : NULL;
 }
@@ -93,7 +96,7 @@ MemoryContext get_query_memory_context(QueryDesc *queryDesc)
  * @brief Update the peak memory value if required
  * @param current
  */
-void update_peak_memory(Size current)
+void pgauditlogtofile_update_peak_memory(Size current)
 {
   if (current > pgaudit_ltf_statement_memory_peak)
     pgaudit_ltf_statement_memory_peak = current;
