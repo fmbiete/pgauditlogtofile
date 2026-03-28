@@ -59,8 +59,49 @@ static bool pgauditlogtofile_is_prefixed(const char *msg);
 static bool pgauditlogtofile_open_file(void);
 static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars);
 static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars);
+static void pgauditlogtofile_free_pending_audit(void);
 
 /* public methods */
+
+/**
+ * @brief Flushes any pending audit record, injecting current execution stats.
+ */
+void PgAuditLogToFile_Flush_Pending(void)
+{
+  ErrorData edata;
+
+  if (!pgaudit_ltf_pending_audit.active)
+    return;
+
+  /* Create a temporary ErrorData to pass to existing formatters */
+  memset(&edata, 0, sizeof(ErrorData));
+  edata.message = pgaudit_ltf_pending_audit.message;
+  edata.detail = pgaudit_ltf_pending_audit.detail;
+  edata.hint = pgaudit_ltf_pending_audit.hint;
+  edata.context = pgaudit_ltf_pending_audit.context;
+  edata.internalquery = pgaudit_ltf_pending_audit.internalquery;
+  edata.internalpos = pgaudit_ltf_pending_audit.internalpos;
+  edata.cursorpos = pgaudit_ltf_pending_audit.cursorpos;
+  edata.sqlerrcode = pgaudit_ltf_pending_audit.sqlerrcode;
+  edata.hide_stmt = pgaudit_ltf_pending_audit.hide_stmt;
+
+  pgauditlogtofile_record_audit(&edata, pgaudit_ltf_pending_audit.exclude_nchars);
+  pgauditlogtofile_free_pending_audit();
+}
+
+/**
+ * @brief Clears the pending audit buffer and frees memory.
+ */
+static void pgauditlogtofile_free_pending_audit(void)
+{
+  if (pgaudit_ltf_pending_audit.message) pfree(pgaudit_ltf_pending_audit.message);
+  if (pgaudit_ltf_pending_audit.detail) pfree(pgaudit_ltf_pending_audit.detail);
+  if (pgaudit_ltf_pending_audit.hint) pfree(pgaudit_ltf_pending_audit.hint);
+  if (pgaudit_ltf_pending_audit.context) pfree(pgaudit_ltf_pending_audit.context);
+  if (pgaudit_ltf_pending_audit.internalquery) pfree(pgaudit_ltf_pending_audit.internalquery);
+  
+  memset(&pgaudit_ltf_pending_audit, 0, sizeof(PendingAudit));
+}
 
 /**
  * @brief Hook to emit_log - write the record to the audit or send it to the default logger
@@ -73,11 +114,30 @@ void PgAuditLogToFile_emit_log(ErrorData *edata)
 
   if (pgauditlogtofile_is_enabled())
   {
-    // printf("ENABLE PRINTF\n");
     if (pg_strncasecmp(edata->message, PGAUDIT_PREFIX_LINE, PGAUDIT_PREFIX_LINE_LENGTH) == 0)
     {
-      exclude_nchars = PGAUDIT_PREFIX_LINE_LENGTH;
+      /* 
+       * For pgAudit records, we buffer the message instead of writing it. 
+       * It will be flushed in ExecutorEnd with correct timing stats.
+       */
+      pgauditlogtofile_free_pending_audit();
+      
+      pgaudit_ltf_pending_audit.active = true;
+      pgaudit_ltf_pending_audit.exclude_nchars = PGAUDIT_PREFIX_LINE_LENGTH;
+      pgaudit_ltf_pending_audit.message = pstrdup(edata->message);
+      if (edata->detail) pgaudit_ltf_pending_audit.detail = pstrdup(edata->detail);
+      if (edata->detail_log) pgaudit_ltf_pending_audit.detail = pstrdup(edata->detail_log);
+      if (edata->hint) pgaudit_ltf_pending_audit.hint = pstrdup(edata->hint);
+      if (edata->context) pgaudit_ltf_pending_audit.context = pstrdup(edata->context);
+      if (edata->internalquery) pgaudit_ltf_pending_audit.internalquery = pstrdup(edata->internalquery);
+      
+      pgaudit_ltf_pending_audit.internalpos = edata->internalpos;
+      pgaudit_ltf_pending_audit.cursorpos = edata->cursorpos;
+      pgaudit_ltf_pending_audit.sqlerrcode = edata->sqlerrcode;
+      pgaudit_ltf_pending_audit.hide_stmt = edata->hide_stmt;
+
       edata->output_to_server = false;
+      return; 
     }
     else if (pgauditlogtofile_is_prefixed(edata->message))
     {

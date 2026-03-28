@@ -15,6 +15,7 @@
 #include "logtofile_execution_time.h"
 #include "logtofile_vars.h"
 #include "logtofile_signal_handler.h"
+#include "logtofile_log.h"
 
 #include <executor/executor.h>
 #include <port.h>
@@ -51,6 +52,15 @@ void PgAuditLogToFile_ExecutorEnd_Hook(QueryDesc *queryDesc)
     PgAuditLogToFile_ExecutorEnd_Time(queryDesc);
   if (guc_pgaudit_ltf_log_execution_memory)
     PgAuditLogToFile_ExecutorEnd_Memory(queryDesc);
+
+  /* Flush buffered audit records now that we have the stats */
+  PgAuditLogToFile_Flush_Pending();
+
+  /* Reset timing and memory variables to 0 so unrelated logs (like disconnection) don't use them */
+  INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_start_time);
+  INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_end_time);
+  pgaudit_ltf_statement_memory_start = 0;
+  pgaudit_ltf_statement_memory_end = 0;
 
   if (pgaudit_ltf_prev_ExecutorEnd)
     pgaudit_ltf_prev_ExecutorEnd(queryDesc);

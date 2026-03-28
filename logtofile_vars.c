@@ -43,6 +43,9 @@ Size pgaudit_ltf_statement_memory_start = 0;
 Size pgaudit_ltf_statement_memory_end = 0;
 Size pgaudit_ltf_statement_memory_peak = 0;
 
+// Pending audit data
+PendingAudit pgaudit_ltf_pending_audit = {0};
+
 // Hook log
 emit_log_hook_type pgaudit_ltf_prev_emit_log_hook = NULL;
 

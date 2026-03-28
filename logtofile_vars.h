@@ -23,6 +23,7 @@
 #include <storage/ipc.h>
 #include <storage/lwlock.h>
 #include <utils/timestamp.h>
+#include <utils/elog.h>
 
 #include <pthread.h>
 
@@ -71,6 +72,24 @@ extern instr_time pgaudit_ltf_statement_end_time;
 extern Size pgaudit_ltf_statement_memory_start;
 extern Size pgaudit_ltf_statement_memory_end;
 extern Size pgaudit_ltf_statement_memory_peak;
+
+// Pending audit data to capture stats at the end of execution
+typedef struct
+{
+  char *message;
+  char *detail;
+  char *hint;
+  char *context;
+  char *internalquery;
+  int internalpos;
+  int cursorpos;
+  int sqlerrcode;
+  int exclude_nchars;
+  bool hide_stmt;
+  bool active;
+} PendingAudit;
+
+extern PendingAudit pgaudit_ltf_pending_audit;
 
 // Hook log
 extern emit_log_hook_type pgaudit_ltf_prev_emit_log_hook;

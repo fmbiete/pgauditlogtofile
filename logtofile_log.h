@@ -17,4 +17,6 @@
 /* Hook functions */
 extern void PgAuditLogToFile_emit_log(ErrorData *edata);
 
+extern void PgAuditLogToFile_Flush_Pending(void);
+
 #endif
