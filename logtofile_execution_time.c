@@ -20,6 +20,7 @@
 void PgAuditLogToFile_ExecutorStart_Time(QueryDesc *queryDesc, int eflags)
 {
   INSTR_TIME_SET_CURRENT(pgaudit_ltf_statement_start_time);
+  INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_end_time);
 }
 
 /**

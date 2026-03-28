@@ -177,7 +177,9 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
   appendStringInfoCharMacro(buf, ',');
 
   /* execution time */
-  if (guc_pgaudit_ltf_log_execution_time)
+  if (guc_pgaudit_ltf_log_execution_time &&
+      !INSTR_TIME_IS_ZERO(pgaudit_ltf_statement_start_time) &&
+      !INSTR_TIME_IS_ZERO(pgaudit_ltf_statement_end_time))
   {
     double total_time;
     instr_time duration = pgaudit_ltf_statement_end_time;
@@ -197,6 +199,10 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
     total_time = INSTR_TIME_GET_DOUBLE(duration);
     pgauditlogtofile_append_csv_fmt(buf, "%.9f", total_time);
     appendStringInfoCharMacro(buf, ',');
+
+    /* Reset timing variables after logging */
+    INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_start_time);
+    INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_end_time);
   }
   else
   {
@@ -206,7 +212,9 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
   }
 
   /* memory usage */
-  if (guc_pgaudit_ltf_log_execution_memory)
+  if (guc_pgaudit_ltf_log_execution_memory &&
+      pgaudit_ltf_statement_memory_start > 0 &&
+      pgaudit_ltf_statement_memory_end > 0)
   {
     Size memory_usage = pgaudit_ltf_statement_memory_end - pgaudit_ltf_statement_memory_start;
     pgauditlogtofile_append_csv_fmt(buf, "%ld", pgaudit_ltf_statement_memory_start);
@@ -216,6 +224,10 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
     pgauditlogtofile_append_csv_fmt(buf, "%ld", pgaudit_ltf_statement_memory_peak);
     appendStringInfoCharMacro(buf, ',');
     pgauditlogtofile_append_csv_fmt(buf, "%ld", memory_usage < 0 ? 0 : memory_usage);
+
+    /* Reset memory variables */
+    pgaudit_ltf_statement_memory_start = 0;
+    pgaudit_ltf_statement_memory_end = 0;
     /* last element, skip separator */
   }
   else

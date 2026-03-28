@@ -168,7 +168,9 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
     pgauditlogtofile_append_json_key_value(buf, "custom.application_name", application_name);
 
   /* execution time */
-  if (guc_pgaudit_ltf_log_execution_time)
+  if (guc_pgaudit_ltf_log_execution_time &&
+      !INSTR_TIME_IS_ZERO(pgaudit_ltf_statement_start_time) &&
+      !INSTR_TIME_IS_ZERO(pgaudit_ltf_statement_end_time))
   {
     double total_time;
     instr_time duration = pgaudit_ltf_statement_end_time;
@@ -185,16 +187,26 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
     INSTR_TIME_SUBTRACT(duration, pgaudit_ltf_statement_start_time);
     total_time = INSTR_TIME_GET_DOUBLE(duration);
     pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_time", "%.9f", total_time);
+
+    /* Reset timing variables after logging to prevent "leaking" to the next unrelated log line */
+    INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_start_time);
+    INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_end_time);
   }
 
   /* memory usage */
-  if (guc_pgaudit_ltf_log_execution_memory)
+  if (guc_pgaudit_ltf_log_execution_memory &&
+      pgaudit_ltf_statement_memory_start > 0 &&
+      pgaudit_ltf_statement_memory_end > 0)
   {
     Size memory_usage = pgaudit_ltf_statement_memory_end - pgaudit_ltf_statement_memory_start;
     pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.start", "%ld", pgaudit_ltf_statement_memory_start);
     pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.end", "%ld", pgaudit_ltf_statement_memory_end);
     pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.peak", "%ld", pgaudit_ltf_statement_memory_peak);
     pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.delta", "%ld", memory_usage < 0 ? 0 : memory_usage);
+
+    /* Reset memory variables */
+    pgaudit_ltf_statement_memory_start = 0;
+    pgaudit_ltf_statement_memory_end = 0;
   }
 
   appendStringInfoCharMacro(buf, '}');
