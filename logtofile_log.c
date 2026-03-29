@@ -143,12 +143,6 @@ static void pgauditlogtofile_close_file(void)
 {
   if (pgaudit_ltf_file_handler != -1)
   {
-    /*
-     * Suggest to the kernel that we don't need the log file in the cache.
-     * This reduces cache pressure for files that are rarely read back.
-     */
-    posix_fadvise(pgaudit_ltf_file_handler, 0, 0, POSIX_FADV_DONTNEED);
-
     close(pgaudit_ltf_file_handler);
     pgaudit_ltf_file_handler = -1;
   }
@@ -258,12 +252,6 @@ static bool pgauditlogtofile_open_file(void)
 
   if (pgaudit_ltf_file_handler != -1)
   {
-    /*
-     * Suggest to the kernel that we don't need the existing file content
-     * in the cache, as we are only appending new data.
-     */
-    posix_fadvise(pgaudit_ltf_file_handler, 0, 0, POSIX_FADV_DONTNEED);
-
     opened = true;
     // File open, we update the filename we are using
     strlcpy(filename_in_use, shm_filename, MAXPGPATH);
@@ -521,13 +509,6 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
       if (rc == buf.len)
       {
         success = true;
-
-        /*
-         * Suggest that these pages can be dropped once writeback completes.
-         * This prevents the log from staying in cache until rotation or
-         * backend exit.
-         */
-        posix_fadvise(pgaudit_ltf_file_handler, 0, 0, POSIX_FADV_DONTNEED);
       }
       else
       {
