@@ -98,6 +98,8 @@ void PgAuditLogToFile_shmem_startup(void)
   pgaudit_ltf_shm = ShmemInitStruct("pgauditlogtofile", sizeof(PgAuditLogToFileShm), &found);
   if (!found)
   {
+    LWLockPadded *tranche;
+
     pg_atomic_init_flag(&pgaudit_ltf_flag_shutdown);
 
     pgauditlogtofile_init_prefixes(&pgaudit_ltf_shm->prefixes_connection,
@@ -110,7 +112,13 @@ void PgAuditLogToFile_shmem_startup(void)
                                    postgresDisconnMsg,
                                    sizeof(postgresDisconnMsg) / sizeof(char *));
 
-    pgaudit_ltf_shm->lock = &(GetNamedLWLockTranche("pgauditlogtofile"))->lock;
+    /*
+     * Get the tranche ID from the named tranche we requested and
+     * initialize our embedded lock.
+     */
+    tranche = GetNamedLWLockTranche("pgauditlogtofile");
+    LWLockInitialize(&pgaudit_ltf_shm->lock, tranche->lock.tranche);
+
     pg_atomic_init_u32(&pgaudit_ltf_shm->rotation_generation, 0);
     PgAuditLogToFile_calculate_current_filename();
     PgAuditLogToFile_set_next_rotation_time();
@@ -153,10 +161,10 @@ void PgAuditLogToFile_calculate_current_filename(void)
     return;
   }
 
-  LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
+  LWLockAcquire(&pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
   memset(pgaudit_ltf_shm->filename, 0, sizeof(pgaudit_ltf_shm->filename));
   strcpy(pgaudit_ltf_shm->filename, filename);
-  LWLockRelease(pgaudit_ltf_shm->lock);
+  LWLockRelease(&pgaudit_ltf_shm->lock);
 
   /* increase generation */
   if (pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation) == PG_UINT32_MAX)

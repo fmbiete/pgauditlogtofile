@@ -102,7 +102,7 @@ typedef struct PgAuditLogToFilePrefix
 
 typedef struct pgAuditLogToFileShm
 {
-  LWLock *lock;
+  LWLock lock;
   PgAuditLogToFilePrefix **prefixes_connection;
   size_t num_prefixes_connection;
   PgAuditLogToFilePrefix **prefixes_disconnection;

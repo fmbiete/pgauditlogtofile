@@ -63,9 +63,9 @@ void PgAuditLogToFile_set_next_rotation_time(void)
   now -= now % rotinterval;
   now += rotinterval;
   now -= tm->tm_gmtoff;
-  LWLockAcquire(pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
+  LWLockAcquire(&pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
   pgaudit_ltf_shm->next_rotation_time = now;
-  LWLockRelease(pgaudit_ltf_shm->lock);
+  LWLockRelease(&pgaudit_ltf_shm->lock);
 }
 
 /* private functions */

@@ -213,9 +213,9 @@ static bool pgauditlogtofile_open_file(void)
   }
   else
   {
-    LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
+    LWLockAcquire(&pgaudit_ltf_shm->lock, LW_SHARED);
     strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
-    LWLockRelease(pgaudit_ltf_shm->lock);
+    LWLockRelease(&pgaudit_ltf_shm->lock);
   }
 
   // if the filename is empty, we short-circuit
@@ -271,9 +271,9 @@ static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nc
   {
     pgauditlogtofile_close_file();
 
-    LWLockAcquire(pgaudit_ltf_shm->lock, LW_SHARED);
+    LWLockAcquire(&pgaudit_ltf_shm->lock, LW_SHARED);
     strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
-    LWLockRelease(pgaudit_ltf_shm->lock);
+    LWLockRelease(&pgaudit_ltf_shm->lock);
 
     pgaudit_ltf_local_rotation_generation = current_generation;
 
