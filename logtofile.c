@@ -188,8 +188,7 @@ void _PG_init(void)
   pgaudit_ltf_prev_shmem_request_hook = shmem_request_hook;
   shmem_request_hook = PgAuditLogToFile_shmem_request;
 #else
-  RequestAddinShmemSpace(MAXALIGN(sizeof(PgAuditLogToFileShm)));
-  RequestNamedLWLockTranche("pgauditlogtofile", 1);
+  PgAuditLogToFile_shmem_request();
 #endif
 
   pgaudit_ltf_prev_shmem_startup_hook = shmem_startup_hook;
