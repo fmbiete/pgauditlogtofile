@@ -204,7 +204,7 @@ static bool pgauditlogtofile_is_prefixed(const char *msg)
     if (p->type == PGAUDIT_LTF_TYPE_DISCONNECTION && !guc_pgaudit_ltf_log_disconnections)
       continue;
 
-    if (pg_strncasecmp(msg, p->prefix, p->length) == 0)
+    if (strncmp(msg, p->prefix, p->length) == 0)
       return true;
   }
 
