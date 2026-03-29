@@ -265,23 +265,34 @@ static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nc
   char shm_filename[MAXPGPATH];
   uint32 current_generation;
 
-  /* MyProc deinitialized and no current file - we cannot audit to file */
-  if (MyProc == NULL && filename_in_use[0] == '\0')
-    return false;
-
-  current_generation = pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation);
-  if ((MyProc != NULL && current_generation != pgaudit_ltf_local_rotation_generation) || filename_in_use[0] == '\0')
+  /*
+   * If MyProc is NULL, we are likely in a process exit sequence. We can only
+   * log if we already have a filename in use. We also cannot safely acquire
+   * LWLocks to check for rotation, so we'll just stick with the current file.
+   */
+  if (MyProc == NULL)
   {
-    pgauditlogtofile_close_file();
+    if (filename_in_use[0] == '\0')
+      return false;
+  }
+  else
+  {
+    /* Check if a rotation has occurred or we haven't opened any file yet */
+    current_generation = pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation);
 
-    LWLockAcquire(&pgaudit_ltf_shm->lock, LW_SHARED);
-    strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
-    LWLockRelease(&pgaudit_ltf_shm->lock);
+    if (current_generation != pgaudit_ltf_local_rotation_generation || filename_in_use[0] == '\0')
+    {
+      pgauditlogtofile_close_file();
 
-    pgaudit_ltf_local_rotation_generation = current_generation;
+      LWLockAcquire(&pgaudit_ltf_shm->lock, LW_SHARED);
+      strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
+      LWLockRelease(&pgaudit_ltf_shm->lock);
 
-    ereport(DEBUG3, (errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
-                            shm_filename, filename_in_use)));
+      pgaudit_ltf_local_rotation_generation = current_generation;
+
+      ereport(DEBUG3, (errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
+                              shm_filename, filename_in_use)));
+    }
   }
 
   if (!pgauditlogtofile_is_open_file() && !pgauditlogtofile_open_file())
