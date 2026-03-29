@@ -61,10 +61,10 @@ static const char *postgresDisconnMsg[] = {
     "disconnection: session time: %d:%02d:%02d.%03d user=%s database=%s host=%s%s%s"};
 
 /* forward declaration private functions */
-static void pgauditlogtofile_init_prefixes(PgAuditLogToFilePrefix ***shm_ptr,
-                                           size_t *shm_count,
-                                           const char **messages,
-                                           size_t num_messages);
+static void pgauditlogtofile_init_prefixes(const char **messages,
+                                           size_t num_messages,
+                                           PgAuditLogToFilePrefixType type);
+static size_t pgauditlogtofile_shm_main_struct_size(void);
 static size_t pgauditlogtofile_shmem_size(void);
 
 /**
@@ -95,22 +95,19 @@ void PgAuditLogToFile_shmem_startup(void)
   pgaudit_ltf_shm = NULL;
 
   LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
-  pgaudit_ltf_shm = ShmemInitStruct("pgauditlogtofile", sizeof(PgAuditLogToFileShm), &found);
+  pgaudit_ltf_shm = ShmemInitStruct("pgauditlogtofile", pgauditlogtofile_shm_main_struct_size(), &found);
   if (!found)
   {
     LWLockPadded *tranche;
+    size_t conn_count = sizeof(postgresConnMsg) / sizeof(char *);
+    size_t disconn_count = sizeof(postgresDisconnMsg) / sizeof(char *);
 
     pg_atomic_init_flag(&pgaudit_ltf_flag_shutdown);
 
-    pgauditlogtofile_init_prefixes(&pgaudit_ltf_shm->prefixes_connection,
-                                   &pgaudit_ltf_shm->num_prefixes_connection,
-                                   postgresConnMsg,
-                                   sizeof(postgresConnMsg) / sizeof(char *));
+    pgaudit_ltf_shm->num_prefixes = 0;
 
-    pgauditlogtofile_init_prefixes(&pgaudit_ltf_shm->prefixes_disconnection,
-                                   &pgaudit_ltf_shm->num_prefixes_disconnection,
-                                   postgresDisconnMsg,
-                                   sizeof(postgresDisconnMsg) / sizeof(char *));
+    pgauditlogtofile_init_prefixes(postgresConnMsg, conn_count, PGAUDIT_LTF_TYPE_CONNECTION);
+    pgauditlogtofile_init_prefixes(postgresDisconnMsg, disconn_count, PGAUDIT_LTF_TYPE_DISCONNECTION);
 
     /*
      * Get the tranche ID from the named tranche we requested and
@@ -205,27 +202,28 @@ bool PgAuditLogToFile_needs_rotate_file(void)
  * @brief Helper to initialize a prefix list in shared memory
  */
 static void
-pgauditlogtofile_init_prefixes(PgAuditLogToFilePrefix ***shm_ptr,
-                               size_t *shm_count,
-                               const char **messages,
-                               size_t num_messages)
+pgauditlogtofile_init_prefixes(const char **messages,
+                               size_t num_messages,
+                               PgAuditLogToFilePrefixType type)
 {
   char **prefixes;
   size_t num_unique;
   size_t i;
 
   prefixes = PgAuditLogToFile_connect_UniquePrefixes(messages, num_messages, &num_unique);
-  *shm_count = num_unique;
-  *shm_ptr = (PgAuditLogToFilePrefix **)ShmemAlloc(num_unique * sizeof(PgAuditLogToFilePrefix *));
 
   for (i = 0; i < num_unique; i++)
   {
     size_t len = strlen(prefixes[i]);
     size_t struct_size = offsetof(PgAuditLogToFilePrefix, prefix) + len + 1;
+    PgAuditLogToFilePrefix *p;
 
-    (*shm_ptr)[i] = (PgAuditLogToFilePrefix *)ShmemAlloc(MAXALIGN(struct_size));
-    (*shm_ptr)[i]->length = (int)len;
-    memcpy((*shm_ptr)[i]->prefix, prefixes[i], len + 1);
+    p = (PgAuditLogToFilePrefix *)ShmemAlloc(MAXALIGN(struct_size));
+    p->length = (int)len;
+    p->type = type;
+    memcpy(p->prefix, prefixes[i], len + 1);
+
+    pgaudit_ltf_shm->prefixes[pgaudit_ltf_shm->num_prefixes++] = p;
     pfree(prefixes[i]);
   }
   pfree(prefixes);
@@ -242,13 +240,12 @@ pgauditlogtofile_shmem_size(void)
   size_t conn_count = sizeof(postgresConnMsg) / sizeof(char *);
   size_t disconn_count = sizeof(postgresDisconnMsg) / sizeof(char *);
 
-  size = MAXALIGN(sizeof(PgAuditLogToFileShm));
+  size = pgauditlogtofile_shm_main_struct_size();
 
   /*
    * Reserve worst-case space for all static strings.
    * This avoids double-calling the deduplication logic.
    */
-  size = add_size(size, mul_size(conn_count, sizeof(PgAuditLogToFilePrefix *)));
   for (i = 0; i < conn_count; i++)
   {
     size_t prefix_size = offsetof(PgAuditLogToFilePrefix, prefix) +
@@ -256,7 +253,6 @@ pgauditlogtofile_shmem_size(void)
     size = add_size(size, MAXALIGN(prefix_size));
   }
 
-  size = add_size(size, mul_size(disconn_count, sizeof(PgAuditLogToFilePrefix *)));
   for (i = 0; i < disconn_count; i++)
   {
     size_t prefix_size = offsetof(PgAuditLogToFilePrefix, prefix) +
@@ -265,4 +261,19 @@ pgauditlogtofile_shmem_size(void)
   }
 
   return size;
+}
+
+/**
+ * @brief Calculate the size of the main SHM struct including the flexible array
+ */
+static size_t
+pgauditlogtofile_shm_main_struct_size(void)
+{
+  size_t conn_count = sizeof(postgresConnMsg) / sizeof(char *);
+  size_t disconn_count = sizeof(postgresDisconnMsg) / sizeof(char *);
+  size_t size;
+
+  size = offsetof(PgAuditLogToFileShm, prefixes);
+  size = add_size(size, mul_size(add_size(conn_count, disconn_count), sizeof(PgAuditLogToFilePrefix *)));
+  return MAXALIGN(size);
 }

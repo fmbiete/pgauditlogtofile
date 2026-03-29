@@ -94,22 +94,27 @@ extern ExecutorEnd_hook_type pgaudit_ltf_prev_ExecutorEnd;
 extern pqsigfunc pgaudit_ltf_prev_sigusr1_handler;
 
 // Shared Memory types
+typedef enum
+{
+  PGAUDIT_LTF_TYPE_CONNECTION,
+  PGAUDIT_LTF_TYPE_DISCONNECTION
+} PgAuditLogToFilePrefixType;
+
 typedef struct PgAuditLogToFilePrefix
 {
   int length;
+  PgAuditLogToFilePrefixType type;
   char prefix[FLEXIBLE_ARRAY_MEMBER];
 } PgAuditLogToFilePrefix;
 
 typedef struct pgAuditLogToFileShm
 {
   LWLock lock;
-  PgAuditLogToFilePrefix **prefixes_connection;
-  size_t num_prefixes_connection;
-  PgAuditLogToFilePrefix **prefixes_disconnection;
-  size_t num_prefixes_disconnection;
   char filename[MAXPGPATH];
   pg_time_t next_rotation_time;
   pg_atomic_uint32 rotation_generation;
+  size_t num_prefixes;
+  PgAuditLogToFilePrefix *prefixes[FLEXIBLE_ARRAY_MEMBER];
 } PgAuditLogToFileShm;
 
 // Shared Memory

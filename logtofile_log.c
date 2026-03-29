@@ -173,26 +173,22 @@ static bool pgauditlogtofile_is_open_file(void)
  */
 static bool pgauditlogtofile_is_prefixed(const char *msg)
 {
-  bool found = false;
   size_t i;
 
-  if (guc_pgaudit_ltf_log_connections)
+  for (i = 0; i < pgaudit_ltf_shm->num_prefixes; i++)
   {
-    for (i = 0; !found && i < pgaudit_ltf_shm->num_prefixes_connection; i++)
-    {
-      found = pg_strncasecmp(msg, pgaudit_ltf_shm->prefixes_connection[i]->prefix, pgaudit_ltf_shm->prefixes_connection[i]->length) == 0;
-    }
+    PgAuditLogToFilePrefix *p = pgaudit_ltf_shm->prefixes[i];
+
+    if (p->type == PGAUDIT_LTF_TYPE_CONNECTION && !guc_pgaudit_ltf_log_connections)
+      continue;
+    if (p->type == PGAUDIT_LTF_TYPE_DISCONNECTION && !guc_pgaudit_ltf_log_disconnections)
+      continue;
+
+    if (pg_strncasecmp(msg, p->prefix, p->length) == 0)
+      return true;
   }
 
-  if (!found && guc_pgaudit_ltf_log_disconnections)
-  {
-    for (i = 0; !found && i < pgaudit_ltf_shm->num_prefixes_disconnection; i++)
-    {
-      found = pg_strncasecmp(msg, pgaudit_ltf_shm->prefixes_disconnection[i]->prefix, pgaudit_ltf_shm->prefixes_disconnection[i]->length) == 0;
-    }
-  }
-
-  return found;
+  return false;
 }
 
 /**
