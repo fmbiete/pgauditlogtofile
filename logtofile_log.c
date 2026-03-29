@@ -60,6 +60,8 @@ static bool pgauditlogtofile_is_prefixed(const char *msg);
 static bool pgauditlogtofile_open_file(void);
 static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nchars);
 static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars);
+static void pgauditlogtofile_format_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars);
+static bool pgauditlogtofile_compress_audit(const char *src, size_t src_len, char **dst, size_t *dst_len);
 
 /* public methods */
 
@@ -338,175 +340,33 @@ static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nc
 static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
 {
   StringInfoData buf;
-  bool success = false;
-  bool compression_success = true;
   char *data_to_write;
-  int rc = 0;
+  size_t data_len;
+  int rc;
+  bool success = false;
 
   initStringInfo(&buf);
-  /* create the log line */
-  switch (guc_pgaudit_ltf_log_format)
-  {
-  case PGAUDIT_LTF_FORMAT_CSV:
-    PgAuditLogToFile_csv_audit(&buf, edata, exclude_nchars);
-    break;
-  case PGAUDIT_LTF_FORMAT_JSON:
-    PgAuditLogToFile_json_audit(&buf, edata, exclude_nchars);
-    break;
-  }
+
+  pgauditlogtofile_format_audit(&buf, edata, exclude_nchars);
 
   // auto-close maybe has closed the file
   if (pgaudit_ltf_file_handler == -1)
     pgauditlogtofile_open_file();
 
   data_to_write = buf.data;
+  data_len = buf.len;
 
   if (pgaudit_ltf_file_handler != -1)
   {
+    bool write_ready = true;
+
     if (guc_pgaudit_ltf_log_compression != PGAUDIT_LTF_COMPRESSION_OFF)
+      write_ready = pgauditlogtofile_compress_audit(buf.data, buf.len, &data_to_write, &data_len);
+
+    if (write_ready)
     {
-      size_t compressed_len_bound = 0;
-
-      /* Calculate buffer size */
-      switch (guc_pgaudit_ltf_log_compression)
-      {
-      case PGAUDIT_LTF_COMPRESSION_GZIP:
-        compressed_len_bound = compressBound(buf.len);
-        break;
-      case PGAUDIT_LTF_COMPRESSION_LZ4:
-        compressed_len_bound = LZ4F_compressFrameBound(buf.len, NULL);
-        break;
-      case PGAUDIT_LTF_COMPRESSION_ZSTD:
-        compressed_len_bound = ZSTD_compressBound(buf.len);
-        break;
-      }
-
-      /* Ensure buffer is large enough */
-      if (pgaudit_ltf_zbuf == NULL || pgaudit_ltf_zbuf_len < compressed_len_bound)
-      {
-        if (pgaudit_ltf_zbuf)
-          pfree(pgaudit_ltf_zbuf);
-        pgaudit_ltf_zbuf_len = compressed_len_bound;
-        pgaudit_ltf_zbuf = (char *)MemoryContextAlloc(TopMemoryContext, pgaudit_ltf_zbuf_len);
-      }
-
-      /* Compress */
-      switch (guc_pgaudit_ltf_log_compression)
-      {
-      case PGAUDIT_LTF_COMPRESSION_GZIP:
-      {
-        int ret;
-        int level = guc_pgaudit_ltf_log_compression_level;
-
-        if (level == 0)
-          level = Z_BEST_SPEED;
-        else if (level > 9)
-          level = 9;
-
-        if (pgaudit_ltf_zstream != NULL && pgaudit_ltf_gzip_level != level)
-        {
-          deflateEnd(pgaudit_ltf_zstream);
-          pfree(pgaudit_ltf_zstream);
-          pgaudit_ltf_zstream = NULL;
-        }
-
-        if (pgaudit_ltf_zstream == NULL)
-        {
-          pgaudit_ltf_zstream = (z_stream *)MemoryContextAlloc(TopMemoryContext, sizeof(z_stream));
-          pgaudit_ltf_zstream->zalloc = Z_NULL;
-          pgaudit_ltf_zstream->zfree = Z_NULL;
-          pgaudit_ltf_zstream->opaque = Z_NULL;
-          ret = deflateInit2(pgaudit_ltf_zstream, level, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);
-          if (ret != Z_OK)
-          {
-            ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not initialize compression stream: zlib error %d", ret)));
-            pfree(pgaudit_ltf_zstream);
-            pgaudit_ltf_zstream = NULL;
-            compression_success = false;
-          }
-          else
-          {
-            pgaudit_ltf_gzip_level = level;
-          }
-        }
-        else
-        {
-          deflateReset(pgaudit_ltf_zstream);
-        }
-
-        if (pgaudit_ltf_zstream)
-        {
-          pgaudit_ltf_zstream->avail_in = buf.len;
-          pgaudit_ltf_zstream->next_in = (Bytef *)buf.data;
-          pgaudit_ltf_zstream->avail_out = pgaudit_ltf_zbuf_len;
-          pgaudit_ltf_zstream->next_out = (Bytef *)pgaudit_ltf_zbuf;
-
-          ret = deflate(pgaudit_ltf_zstream, Z_FINISH);
-          if (ret != Z_STREAM_END)
-          {
-            ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not compress audit record: zlib error %d", ret)));
-            compression_success = false;
-          }
-          else
-          {
-            buf.len = pgaudit_ltf_zstream->total_out;
-            data_to_write = pgaudit_ltf_zbuf;
-          }
-        }
-        break;
-      }
-      case PGAUDIT_LTF_COMPRESSION_LZ4:
-      {
-        LZ4F_preferences_t prefs;
-        size_t cSize;
-        memset(&prefs, 0, sizeof(prefs));
-        prefs.compressionLevel = guc_pgaudit_ltf_log_compression_level;
-        cSize = LZ4F_compressFrame(pgaudit_ltf_zbuf, pgaudit_ltf_zbuf_len, buf.data, buf.len, &prefs);
-        if (LZ4F_isError(cSize))
-        {
-          ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not compress audit record: lz4 error %s", LZ4F_getErrorName(cSize))));
-          compression_success = false;
-        }
-        else
-        {
-          buf.len = cSize;
-          data_to_write = pgaudit_ltf_zbuf;
-        }
-        break;
-      }
-      case PGAUDIT_LTF_COMPRESSION_ZSTD:
-      {
-        size_t cSize;
-        int level = guc_pgaudit_ltf_log_compression_level;
-        if (level == 0)
-          level = 1;
-
-        if (pgaudit_ltf_zstd_cctx == NULL)
-        {
-          pgaudit_ltf_zstd_cctx = ZSTD_createCCtx();
-        }
-        cSize = ZSTD_compressCCtx(pgaudit_ltf_zstd_cctx, pgaudit_ltf_zbuf, pgaudit_ltf_zbuf_len, buf.data, buf.len, level);
-        if (ZSTD_isError(cSize))
-        {
-          ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not compress audit record: zstd error %s", ZSTD_getErrorName(cSize))));
-          compression_success = false;
-        }
-        else
-        {
-          buf.len = cSize;
-          data_to_write = pgaudit_ltf_zbuf;
-        }
-        break;
-      }
-      default:
-        break;
-      }
-    }
-
-    if (compression_success)
-    {
-      rc = write(pgaudit_ltf_file_handler, data_to_write, buf.len);
-      if (rc == buf.len)
+      rc = write(pgaudit_ltf_file_handler, data_to_write, data_len);
+      if (rc == (int)data_len)
       {
         success = true;
       }
@@ -527,4 +387,164 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
   pfree(buf.data);
 
   return success;
+}
+
+/**
+ * @brief Helper to format the audit record based on configuration.
+ */
+static void
+pgauditlogtofile_format_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars)
+{
+  switch (guc_pgaudit_ltf_log_format)
+  {
+  case PGAUDIT_LTF_FORMAT_CSV:
+    PgAuditLogToFile_csv_audit(buf, edata, exclude_nchars);
+    break;
+  case PGAUDIT_LTF_FORMAT_JSON:
+    PgAuditLogToFile_json_audit(buf, edata, exclude_nchars);
+    break;
+  }
+}
+
+/**
+ * @brief Helper to handle audit record compression.
+ * Updates dst and dst_len pointers to the compressed buffer.
+ */
+static bool
+pgauditlogtofile_compress_audit(const char *src, size_t src_len, char **dst, size_t *dst_len)
+{
+  size_t compressed_len_bound = 0;
+  bool compression_success = true;
+
+  /* 1. Calculate buffer size requirements */
+  switch (guc_pgaudit_ltf_log_compression)
+  {
+  case PGAUDIT_LTF_COMPRESSION_GZIP:
+    compressed_len_bound = compressBound(src_len);
+    break;
+  case PGAUDIT_LTF_COMPRESSION_LZ4:
+    compressed_len_bound = LZ4F_compressFrameBound(src_len, NULL);
+    break;
+  case PGAUDIT_LTF_COMPRESSION_ZSTD:
+    compressed_len_bound = ZSTD_compressBound(src_len);
+    break;
+  default:
+    return false;
+  }
+
+  /* 2. Ensure compression buffer is large enough */
+  if (pgaudit_ltf_zbuf == NULL || pgaudit_ltf_zbuf_len < compressed_len_bound)
+  {
+    if (pgaudit_ltf_zbuf)
+      pfree(pgaudit_ltf_zbuf);
+    pgaudit_ltf_zbuf_len = compressed_len_bound;
+    pgaudit_ltf_zbuf = (char *)MemoryContextAlloc(TopMemoryContext, pgaudit_ltf_zbuf_len);
+  }
+
+  /* 3. Perform algorithm-specific compression */
+  switch (guc_pgaudit_ltf_log_compression)
+  {
+  case PGAUDIT_LTF_COMPRESSION_GZIP:
+  {
+    int ret;
+    int level = guc_pgaudit_ltf_log_compression_level;
+
+    if (level == 0)
+      level = Z_BEST_SPEED;
+    else if (level > 9)
+      level = 9;
+
+    if (pgaudit_ltf_zstream != NULL && pgaudit_ltf_gzip_level != level)
+    {
+      deflateEnd(pgaudit_ltf_zstream);
+      pfree(pgaudit_ltf_zstream);
+      pgaudit_ltf_zstream = NULL;
+    }
+
+    if (pgaudit_ltf_zstream == NULL)
+    {
+      pgaudit_ltf_zstream = (z_stream *)MemoryContextAlloc(TopMemoryContext, sizeof(z_stream));
+      pgaudit_ltf_zstream->zalloc = Z_NULL;
+      pgaudit_ltf_zstream->zfree = Z_NULL;
+      pgaudit_ltf_zstream->opaque = Z_NULL;
+      ret = deflateInit2(pgaudit_ltf_zstream, level, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);
+      if (ret != Z_OK)
+      {
+        ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not initialize compression stream: zlib error %d", ret)));
+        pfree(pgaudit_ltf_zstream);
+        pgaudit_ltf_zstream = NULL;
+        return false;
+      }
+      pgaudit_ltf_gzip_level = level;
+    }
+    else
+      deflateReset(pgaudit_ltf_zstream);
+
+    pgaudit_ltf_zstream->avail_in = src_len;
+    pgaudit_ltf_zstream->next_in = (Bytef *)src;
+    pgaudit_ltf_zstream->avail_out = pgaudit_ltf_zbuf_len;
+    pgaudit_ltf_zstream->next_out = (Bytef *)pgaudit_ltf_zbuf;
+
+    ret = deflate(pgaudit_ltf_zstream, Z_FINISH);
+    if (ret != Z_STREAM_END)
+    {
+      ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not compress audit record: zlib error %d", ret)));
+      compression_success = false;
+    }
+    else
+    {
+      *dst_len = pgaudit_ltf_zstream->total_out;
+      *dst = pgaudit_ltf_zbuf;
+    }
+    break;
+  }
+  case PGAUDIT_LTF_COMPRESSION_LZ4:
+  {
+    LZ4F_preferences_t prefs;
+    size_t cSize;
+
+    memset(&prefs, 0, sizeof(prefs));
+    prefs.compressionLevel = guc_pgaudit_ltf_log_compression_level;
+    cSize = LZ4F_compressFrame(pgaudit_ltf_zbuf, pgaudit_ltf_zbuf_len, src, src_len, &prefs);
+    if (LZ4F_isError(cSize))
+    {
+      ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not compress audit record: lz4 error %s", LZ4F_getErrorName(cSize))));
+      compression_success = false;
+    }
+    else
+    {
+      *dst_len = cSize;
+      *dst = pgaudit_ltf_zbuf;
+    }
+    break;
+  }
+  case PGAUDIT_LTF_COMPRESSION_ZSTD:
+  {
+    size_t cSize;
+    int level = guc_pgaudit_ltf_log_compression_level;
+    if (level == 0)
+      level = 1;
+
+    if (pgaudit_ltf_zstd_cctx == NULL)
+      pgaudit_ltf_zstd_cctx = ZSTD_createCCtx();
+
+    cSize = ZSTD_compressCCtx(pgaudit_ltf_zstd_cctx, pgaudit_ltf_zbuf, pgaudit_ltf_zbuf_len, src, src_len, level);
+    if (ZSTD_isError(cSize))
+    {
+      ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile: could not compress audit record: zstd error %s", ZSTD_getErrorName(cSize))));
+      compression_success = false;
+    }
+    else
+    {
+      *dst_len = cSize;
+      *dst = pgaudit_ltf_zbuf;
+    }
+    break;
+  }
+  default:
+    compression_success = false;
+    break;
+  }
+
+  return compression_success;
 }
