@@ -74,7 +74,8 @@ void PgAuditLogToFile_ExecutorRun_Memory(QueryDesc *queryDesc,
  * @param ctx
  * @return Size
  */
-Size pgauditlogtofile_MemoryContextTotalAllocated(MemoryContext ctx)
+static Size
+pgauditlogtofile_MemoryContextTotalAllocated(MemoryContext ctx)
 {
   if (ctx == NULL)
     return 0;
@@ -87,7 +88,8 @@ Size pgauditlogtofile_MemoryContextTotalAllocated(MemoryContext ctx)
  * @param queryDesc
  * @return MemoryContext
  */
-MemoryContext pgauditlogtofile_get_query_memory_context(QueryDesc *queryDesc)
+static MemoryContext
+pgauditlogtofile_get_query_memory_context(QueryDesc *queryDesc)
 {
   return (queryDesc && queryDesc->estate) ? queryDesc->estate->es_query_cxt : NULL;
 }
@@ -96,7 +98,8 @@ MemoryContext pgauditlogtofile_get_query_memory_context(QueryDesc *queryDesc)
  * @brief Update the peak memory value if required
  * @param current
  */
-void pgauditlogtofile_update_peak_memory(Size current)
+static void
+pgauditlogtofile_update_peak_memory(Size current)
 {
   if (current > pgaudit_ltf_statement_memory_peak)
     pgaudit_ltf_statement_memory_peak = current;
