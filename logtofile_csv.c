@@ -172,15 +172,17 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
   /* file error location */
   if (Log_error_verbosity >= PGERROR_VERBOSE)
   {
-    size_t needed = strlen(edata->funcname ?: "") + strlen(edata->filename ?: "") + FORMATTED_NUMLINE_LEN;
-    char *msgbuf = palloc(needed);
+    StringInfoData loc;
+
+    initStringInfo(&loc);
 
     if (edata->funcname && edata->filename)
-      pg_snprintf(msgbuf, needed, "%s, %s:%d", edata->funcname, edata->filename, edata->lineno);
+      appendStringInfo(&loc, "%s, %s:%d", edata->funcname, edata->filename, edata->lineno);
     else if (edata->filename)
-      pg_snprintf(msgbuf, needed, "%s:%d", edata->filename, edata->lineno);
-    pgauditlogtofile_append_csv_value(buf, msgbuf);
-    pfree(msgbuf);
+      appendStringInfo(&loc, "%s:%d", edata->filename, edata->lineno);
+    pgauditlogtofile_append_csv_value(buf, loc.data);
+
+    pfree(loc.data);
   }
   appendStringInfoCharMacro(buf, ',');
 

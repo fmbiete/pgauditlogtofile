@@ -166,10 +166,11 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
   {
     if (edata->filename)
     {
-      char buffNum[FORMATTED_NUMLINE_LEN];
-      pg_snprintf(buffNum, sizeof(buffNum), "%d", edata->lineno);
+      char buffNum[FORMATTED_NUMLINE_LEN] = {0};
 
       pgauditlogtofile_append_json_key_value(buf, "custom.source_filename", edata->filename);
+
+      pg_snprintf(buffNum, sizeof(buffNum), "%d", edata->lineno);
       pgauditlogtofile_append_json_key_value(buf, "custom.source_linenum", buffNum);
     }
     if (edata->funcname)
