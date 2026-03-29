@@ -34,6 +34,14 @@
 #include "logtofile_shmem.h"
 #include "logtofile_vars.h"
 
+/*
+ * Wait events for pg_stat_activity visibility.
+ */
+static uint32 pgaudit_wait_main = 0;
+static uint32 pgaudit_wait_signal = 0;
+static uint32 pgaudit_wait_config = 0;
+static uint32 pgaudit_wait_rotate = 0;
+
 /* global settings */
 
 /* flags set by signal handlers */
@@ -53,6 +61,15 @@ void PgAuditLogToFileMain(Datum arg)
 {
   int sleep_ms = SECS_PER_MINUTE * 1000;
   MemoryContext PgAuditLogToFileContext = NULL;
+
+  /* Register custom wait events for visibility in pg_stat_activity */
+  if (pgaudit_wait_main == 0)
+  {
+    pgaudit_wait_main = WaitEventExtensionNew("PgAuditLogToFileMain");
+    pgaudit_wait_signal = WaitEventExtensionNew("PgAuditLogToFileSignal");
+    pgaudit_wait_config = WaitEventExtensionNew("PgAuditLogToFileConfig");
+    pgaudit_wait_rotate = WaitEventExtensionNew("PgAuditLogToFileRotate");
+  }
 
   pqsignal(SIGHUP, SignalHandlerForConfigReload);
   pqsignal(SIGINT, SIG_IGN);
@@ -83,6 +100,8 @@ void PgAuditLogToFileMain(Datum arg)
       PGPROC *proc;
 
       got_sigusr1 = false;
+      pgstat_report_wait_start(pgaudit_wait_signal);
+
       ereport(LOG, (errmsg("pgauditlogtofile bgw: received SIGUSR1, propagating to backends")));
 
       /*
@@ -104,6 +123,7 @@ void PgAuditLogToFileMain(Datum arg)
       }
 
       LWLockRelease(ProcArrayLock);
+      pgstat_report_wait_end();
     }
 
     if (guc_pgaudit_ltf_log_rotation_age > 0 && guc_pgaudit_ltf_log_rotation_age < 5)
@@ -121,20 +141,27 @@ void PgAuditLogToFileMain(Datum arg)
     if (ConfigReloadPending)
     {
       ConfigReloadPending = false;
+
+      pgstat_report_wait_start(pgaudit_wait_config);
       ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop reload cfg")));
       ProcessConfigFile(PGC_SIGHUP);
       PgAuditLogToFile_calculate_current_filename();
       PgAuditLogToFile_set_next_rotation_time();
       ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
+      pgstat_report_wait_end();
     }
     else
     {
       if (PgAuditLogToFile_needs_rotate_file())
       {
+        pgstat_report_wait_start(pgaudit_wait_rotate);
+
         ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop needs rotation %s", pgaudit_ltf_shm->filename)));
         PgAuditLogToFile_calculate_current_filename();
         PgAuditLogToFile_set_next_rotation_time();
         ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
+
+        pgstat_report_wait_end();
       }
     }
 
@@ -143,7 +170,7 @@ void PgAuditLogToFileMain(Datum arg)
       break;
 
     rc = WaitLatch(&MyProc->procLatch, WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH, sleep_ms,
-                   PG_WAIT_EXTENSION);
+                   pgaudit_wait_main);
     if (rc & WL_POSTMASTER_DEATH)
       proc_exit(1);
 
