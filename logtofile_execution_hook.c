@@ -22,6 +22,11 @@
 
 static bool pgaudit_ltf_handler_setup = false;
 
+/**
+ * @brief Hook for ExecutorStart to setup signal handlers and stats capture
+ * @param queryDesc query descriptor
+ * @param eflags executor flags
+ */
 void PgAuditLogToFile_ExecutorStart_Hook(QueryDesc *queryDesc, int eflags)
 {
   if (!pgaudit_ltf_handler_setup)
@@ -47,6 +52,10 @@ void PgAuditLogToFile_ExecutorStart_Hook(QueryDesc *queryDesc, int eflags)
     PgAuditLogToFile_ExecutorStart_Memory(queryDesc, eflags);
 }
 
+/**
+ * @brief Hook for ExecutorEnd to finalize stats and flush pending logs
+ * @param queryDesc query descriptor
+ */
 void PgAuditLogToFile_ExecutorEnd_Hook(QueryDesc *queryDesc)
 {
   if (guc_pgaudit_ltf_log_execution_time)
@@ -81,6 +90,13 @@ void PgAuditLogToFile_ExecutorEnd_Hook(QueryDesc *queryDesc)
 void PgAuditLogToFile_ExecutorRun_Hook(QueryDesc *queryDesc, ScanDirection direction, uint64 count)
 #else
 #define EX_RUN_ARGS queryDesc, direction, count, execute_once
+/**
+ * @brief Hook for ExecutorRun to track peak memory usage
+ * @param queryDesc query descriptor
+ * @param direction scan direction
+ * @param count tuple count
+ * @param execute_once execution flag
+ */
 void PgAuditLogToFile_ExecutorRun_Hook(QueryDesc *queryDesc, ScanDirection direction, uint64 count, bool execute_once)
 #endif
 {

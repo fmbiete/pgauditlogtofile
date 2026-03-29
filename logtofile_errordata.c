@@ -13,9 +13,9 @@
 
 #include "logtofile_vars.h"
 
-/*
+/**
  * @brief Copy ErrorData object [derived of CopyErrorData]
- * @param ErrorData object to duplicate
+ * @param edata ErrorData object to duplicate
  */
 void PgAuditLogToFile_CopyPendingErrorData(ErrorData *edata)
 {
@@ -71,8 +71,9 @@ void PgAuditLogToFile_CopyPendingErrorData(ErrorData *edata)
   pgaudit_ltf_pending_audit.active = true;
 }
 
-/*
+/**
  * @brief Free ErrorData object [derived of FreeErrorData]
+ * @return void
  */
 void PgAuditLogToFile_FreePendingErrorData(void)
 {

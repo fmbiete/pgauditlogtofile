@@ -172,7 +172,7 @@ void PgAuditLogToFile_calculate_current_filename(void)
   pfree(filename);
 }
 
-/*
+/**
  * @brief Checks if the audit log file needs to be rotated before we use it
  * @param void
  * @return bool: true if the file needs to be rotated
