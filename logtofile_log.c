@@ -68,12 +68,16 @@ static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nch
  */
 void PgAuditLogToFile_Flush_Pending(void)
 {
+  int save_errno = errno;
+
   if (!pgaudit_ltf_pending_audit.active || pgaudit_ltf_pending_audit.edata == NULL)
     return;
 
   pgauditlogtofile_record_audit(pgaudit_ltf_pending_audit.edata, PGAUDIT_PREFIX_LINE_LENGTH);
 
   PgAuditLogToFile_FreePendingErrorData();
+
+  errno = save_errno;
 }
 
 /**
@@ -83,6 +87,8 @@ void PgAuditLogToFile_Flush_Pending(void)
  */
 void PgAuditLogToFile_emit_log(ErrorData *edata)
 {
+  int save_errno = errno;
+
   if (pgauditlogtofile_is_enabled())
   {
     if (pg_strncasecmp(edata->message, PGAUDIT_PREFIX_LINE, PGAUDIT_PREFIX_LINE_LENGTH) == 0)
@@ -91,7 +97,7 @@ void PgAuditLogToFile_emit_log(ErrorData *edata)
       if (guc_pgaudit_ltf_log_execution_time || guc_pgaudit_ltf_log_execution_memory)
       {
         /*
-         * If we measure execution variables, for pgAudit records,
+         * If we measure execution variables,
          * we buffer the message instead of writing it.
          * It will be flushed in ExecutorEnd with correct timing stats.
          */
@@ -114,6 +120,13 @@ void PgAuditLogToFile_emit_log(ErrorData *edata)
       pgauditlogtofile_record_audit(edata, 0);
     }
   }
+
+  /*
+   * Restore errno before calling the next hook in the chain. This ensures
+   * that any subsequent hook relying on the original errno (e.g. via %m)
+   * receives the correct value.
+   */
+  errno = save_errno;
 
   if (pgaudit_ltf_prev_emit_log_hook)
     pgaudit_ltf_prev_emit_log_hook(edata);
