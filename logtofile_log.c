@@ -235,7 +235,7 @@ static bool pgauditlogtofile_open_file(void)
   }
 
   // if the filename is empty, we short-circuit
-  if (strlen(shm_filename) == 0)
+  if (shm_filename[0] == '\0')
     return false;
 
   /* Create spool directory if not present; ignore errors */
