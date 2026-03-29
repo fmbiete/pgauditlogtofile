@@ -142,12 +142,22 @@ static void pgauditlogtofile_close_file(void)
  */
 static bool pgauditlogtofile_is_enabled(void)
 {
-  if (UsedShmemSegAddr == NULL)
+  /* Check shared memory is attached and our struct is initialized */
+  if (UsedShmemSegAddr == NULL || pgaudit_ltf_shm == NULL)
     return false;
 
-  if (!pgaudit_ltf_shm || !pg_atomic_unlocked_test_flag(&pgaudit_ltf_flag_shutdown) ||
-      guc_pgaudit_ltf_log_directory == NULL || guc_pgaudit_ltf_log_filename == NULL ||
-      strlen(guc_pgaudit_ltf_log_directory) == 0 || strlen(guc_pgaudit_ltf_log_filename) == 0)
+  /*
+   * Check if shutdown is in progress.
+   * Atomic check is fast enough for the hot path.
+   */
+  if (!pg_atomic_unlocked_test_flag(&pgaudit_ltf_flag_shutdown))
+    return false;
+
+  /* Check GUCs: verify pointers and ensure strings are not empty */
+  if (guc_pgaudit_ltf_log_directory == NULL || guc_pgaudit_ltf_log_directory[0] == '\0')
+    return false;
+
+  if (guc_pgaudit_ltf_log_filename == NULL || guc_pgaudit_ltf_log_filename[0] == '\0')
     return false;
 
   return true;
@@ -160,10 +170,7 @@ static bool pgauditlogtofile_is_enabled(void)
  */
 static bool pgauditlogtofile_is_open_file(void)
 {
-  if (pgaudit_ltf_file_handler != -1)
-    return true;
-  else
-    return false;
+  return (pgaudit_ltf_file_handler != -1);
 }
 
 /**
@@ -259,11 +266,11 @@ static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nc
   uint32 current_generation;
 
   /* MyProc deinitialized and no current file - we cannot audit to file */
-  if (MyProc == NULL && strlen(filename_in_use) == 0)
+  if (MyProc == NULL && filename_in_use[0] == '\0')
     return false;
 
   current_generation = pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation);
-  if (current_generation != pgaudit_ltf_local_rotation_generation || strlen(filename_in_use) == 0)
+  if ((MyProc != NULL && current_generation != pgaudit_ltf_local_rotation_generation) || filename_in_use[0] == '\0')
   {
     pgauditlogtofile_close_file();
 
