@@ -51,6 +51,7 @@ static volatile sig_atomic_t got_sigusr1 = false;
 /* forward declaration private functions */
 static void pgauditlogtofile_sigterm(SIGNAL_ARGS);
 static void pgauditlogtofile_sigusr1(SIGNAL_ARGS);
+static void pgauditlogtofile_rotate_file(uint32 wait_event_info);
 
 /**
  * @brief Main entry point for the background worker
@@ -141,28 +142,14 @@ void PgAuditLogToFileMain(Datum arg)
     if (ConfigReloadPending)
     {
       ConfigReloadPending = false;
-
-      pgstat_report_wait_start(pgaudit_wait_config);
       ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop reload cfg")));
       ProcessConfigFile(PGC_SIGHUP);
-      PgAuditLogToFile_calculate_current_filename();
-      PgAuditLogToFile_set_next_rotation_time();
-      ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
-      pgstat_report_wait_end();
+      pgauditlogtofile_rotate_file(pgaudit_wait_config);
     }
-    else
+    else if (PgAuditLogToFile_needs_rotate_file())
     {
-      if (PgAuditLogToFile_needs_rotate_file())
-      {
-        pgstat_report_wait_start(pgaudit_wait_rotate);
-
-        ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop needs rotation %s", pgaudit_ltf_shm->filename)));
-        PgAuditLogToFile_calculate_current_filename();
-        PgAuditLogToFile_set_next_rotation_time();
-        ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop new filename %s", pgaudit_ltf_shm->filename)));
-
-        pgstat_report_wait_end();
-      }
+      ereport(DEBUG3, (errmsg("pgauditlogtofile bgw loop needs rotation %s", pgaudit_ltf_shm->filename)));
+      pgauditlogtofile_rotate_file(pgaudit_wait_rotate);
     }
 
     /* shutdown if requested */
@@ -213,4 +200,19 @@ pgauditlogtofile_sigterm(SIGNAL_ARGS)
   if (MyProc != NULL)
     SetLatch(&MyProc->procLatch);
   errno = save_errno;
+}
+
+/**
+ * @brief Performs the actual log file rotation and cache advice.
+ * @param wait_event_info: wait event to report during rotation
+ */
+static void
+pgauditlogtofile_rotate_file(uint32 wait_event_info)
+{
+  pgstat_report_wait_start(wait_event_info);
+
+  PgAuditLogToFile_calculate_current_filename();
+  PgAuditLogToFile_set_next_rotation_time();
+
+  pgstat_report_wait_end();
 }
