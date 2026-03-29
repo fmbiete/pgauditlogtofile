@@ -13,9 +13,7 @@
 
 #include "logtofile_vars.h"
 
-#include <datatype/timestamp.h>
 #include <port/atomics.h>
-#include <utils/timestamp.h>
 
 #include <pthread.h>
 #include <unistd.h>
@@ -27,25 +25,32 @@
  */
 void *PgAuditLogToFile_autoclose_run(void *arg)
 {
-  int64 diff;
-  TimestampTz ts_now;
-  long secs;
-  int microsecs;
+  time_t ts_now;
+  time_t last_active;
+  double diff_mins;
   int *autoclose_thread_status_debug;
 
-  // don't use ereport here, use this flag to identify the position
+  /* don't use ereport here, use this flag to identify the position */
   autoclose_thread_status_debug = (int *)arg;
 
   while (1)
   {
     sleep(1 * SECS_PER_MINUTE);
-    ts_now = GetCurrentTimestamp();
-    TimestampDifference(pgaudit_ltf_autoclose_active_ts, ts_now, &secs, &microsecs);
-    diff = secs / SECS_PER_MINUTE;
-    if (diff >= guc_pgaudit_ltf_auto_close_minutes)
+
+    ts_now = time(NULL);
+    last_active = (time_t)pgaudit_ltf_autoclose_active_ts;
+    diff_mins = difftime(ts_now, last_active) / 60.0;
+
+    if (diff_mins >= (double)guc_pgaudit_ltf_auto_close_minutes)
     {
-      close(pgaudit_ltf_file_handler);
-      pgaudit_ltf_file_handler = -1;
+      int fd = pgaudit_ltf_file_handler;
+
+      if (fd != -1)
+      {
+        pgaudit_ltf_file_handler = -1;
+        close(fd);
+      }
+
       *autoclose_thread_status_debug = 3; // file closed
       break;
     }

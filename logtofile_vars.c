@@ -32,7 +32,7 @@ int pgaudit_ltf_file_handler = -1;
 pg_atomic_flag pgaudit_ltf_autoclose_flag_thread;
 pthread_t pgaudit_ltf_autoclose_thread;
 pthread_attr_t pgaudit_ltf_autoclose_thread_attr;
-TimestampTz pgaudit_ltf_autoclose_active_ts;
+pg_time_t pgaudit_ltf_autoclose_active_ts;
 
 // Statement time measurement
 instr_time pgaudit_ltf_statement_start_time;

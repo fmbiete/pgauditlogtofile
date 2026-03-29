@@ -62,7 +62,7 @@ extern int pgaudit_ltf_file_handler;
 extern pg_atomic_flag pgaudit_ltf_autoclose_flag_thread;
 extern pthread_t pgaudit_ltf_autoclose_thread;
 extern pthread_attr_t pgaudit_ltf_autoclose_thread_attr;
-extern Timestamp pgaudit_ltf_autoclose_active_ts;
+extern pg_time_t pgaudit_ltf_autoclose_active_ts;
 
 // Statement time measurement
 extern instr_time pgaudit_ltf_statement_start_time;

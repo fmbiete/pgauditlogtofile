@@ -314,7 +314,7 @@ static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nc
     return false;
 
   rc = pgauditlogtofile_write_audit(edata, exclude_nchars);
-  pgaudit_ltf_autoclose_active_ts = GetCurrentTimestamp();
+  pgaudit_ltf_autoclose_active_ts = (pg_time_t)time(NULL);
 
   if (guc_pgaudit_ltf_auto_close_minutes > 0)
   {
