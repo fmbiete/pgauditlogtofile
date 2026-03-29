@@ -254,7 +254,7 @@ static bool pgauditlogtofile_open_file(void)
   {
     opened = true;
     // File open, we update the filename we are using
-    strcpy(filename_in_use, shm_filename);
+    strlcpy(filename_in_use, shm_filename, MAXPGPATH);
   }
   else
   {

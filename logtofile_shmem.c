@@ -160,7 +160,7 @@ void PgAuditLogToFile_calculate_current_filename(void)
 
   LWLockAcquire(&pgaudit_ltf_shm->lock, LW_EXCLUSIVE);
   memset(pgaudit_ltf_shm->filename, 0, sizeof(pgaudit_ltf_shm->filename));
-  strcpy(pgaudit_ltf_shm->filename, filename);
+  strlcpy(pgaudit_ltf_shm->filename, filename, MAXPGPATH);
   LWLockRelease(&pgaudit_ltf_shm->lock);
 
   /* increase generation */
