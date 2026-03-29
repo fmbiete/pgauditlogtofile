@@ -96,8 +96,8 @@ extern pqsigfunc pgaudit_ltf_prev_sigusr1_handler;
 // Shared Memory types
 typedef struct PgAuditLogToFilePrefix
 {
-  char *prefix;
   int length;
+  char prefix[FLEXIBLE_ARRAY_MEMBER];
 } PgAuditLogToFilePrefix;
 
 typedef struct pgAuditLogToFileShm

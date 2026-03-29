@@ -213,10 +213,10 @@ pgauditlogtofile_init_prefixes(PgAuditLogToFilePrefix ***shm_ptr,
   for (i = 0; i < num_unique; i++)
   {
     size_t len = strlen(prefixes[i]);
+    size_t struct_size = offsetof(PgAuditLogToFilePrefix, prefix) + len + 1;
 
-    (*shm_ptr)[i] = (PgAuditLogToFilePrefix *)ShmemAlloc(sizeof(PgAuditLogToFilePrefix));
+    (*shm_ptr)[i] = (PgAuditLogToFilePrefix *)ShmemAlloc(MAXALIGN(struct_size));
     (*shm_ptr)[i]->length = (int)len;
-    (*shm_ptr)[i]->prefix = (char *)ShmemAlloc(len + 1);
     memcpy((*shm_ptr)[i]->prefix, prefixes[i], len + 1);
     pfree(prefixes[i]);
   }
@@ -243,15 +243,17 @@ pgauditlogtofile_shmem_size(void)
   size = add_size(size, mul_size(conn_count, sizeof(PgAuditLogToFilePrefix *)));
   for (i = 0; i < conn_count; i++)
   {
-    size = add_size(size, MAXALIGN(sizeof(PgAuditLogToFilePrefix)));
-    size = add_size(size, MAXALIGN(strlen(postgresConnMsg[i]) + 1));
+    size_t prefix_size = offsetof(PgAuditLogToFilePrefix, prefix) +
+                         strlen(postgresConnMsg[i]) + 1;
+    size = add_size(size, MAXALIGN(prefix_size));
   }
 
   size = add_size(size, mul_size(disconn_count, sizeof(PgAuditLogToFilePrefix *)));
   for (i = 0; i < disconn_count; i++)
   {
-    size = add_size(size, MAXALIGN(sizeof(PgAuditLogToFilePrefix)));
-    size = add_size(size, MAXALIGN(strlen(postgresDisconnMsg[i]) + 1));
+    size_t prefix_size = offsetof(PgAuditLogToFilePrefix, prefix) +
+                         strlen(postgresDisconnMsg[i]) + 1;
+    size = add_size(size, MAXALIGN(prefix_size));
   }
 
   return size;
