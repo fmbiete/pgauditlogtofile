@@ -27,10 +27,6 @@
 
 /* forward declaration private functions */
 
-inline static void pgauditlogtofile_append_json_key_value(StringInfo buf, const char *key, const char *value)
-    __attribute__((always_inline));
-static void pgauditlogtofile_append_json_key_fmt(StringInfo buf, const char *key, const char *fmt, ...)
-    __attribute__((format(gnu_printf, 3, 4)));
 inline static void pgauditlogtofile_pgaudit2json(StringInfo buf, char *message)
     __attribute__((always_inline));
 
@@ -45,180 +41,159 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
 {
   char formatted_log_time[FORMATTED_TS_LEN];
   instr_time now_instr;
+  const char *psdisp;
+  int displen;
+  double total_time;
+  instr_time duration;
+  Size memory_usage;
 
   /* json record start */
   appendStringInfoString(buf, "{\"log.source\":\"pgauditlogtofile\"");
-  pgauditlogtofile_append_json_key_value(buf, "severity", "audit");
+  appendStringInfoString(buf, ",\"severity\":\"audit\"");
 
   /* timestamp with nanoseconds */
   INSTR_TIME_SET_CURRENT(now_instr);
   PgAuditLogToFile_format_instr_time_nanos(now_instr, formatted_log_time, sizeof(formatted_log_time));
-  pgauditlogtofile_append_json_key_value(buf, "timestamp", formatted_log_time);
+  appendStringInfoString(buf, ",\"timestamp\":");
+  escape_json(buf, formatted_log_time);
 
   /* username */
   if (MyProcPort && MyProcPort->user_name)
-    pgauditlogtofile_append_json_key_value(buf, "db.user", MyProcPort->user_name);
+  {
+    appendStringInfoString(buf, ",\"db.user\":");
+    escape_json(buf, MyProcPort->user_name);
+  }
 
   /* database name */
   if (MyProcPort && MyProcPort->database_name)
-    pgauditlogtofile_append_json_key_value(buf, "db.name", MyProcPort->database_name);
+  {
+    appendStringInfoString(buf, ",\"db.name\":");
+    escape_json(buf, MyProcPort->database_name);
+  }
 
   /* Process id  */
-  pgauditlogtofile_append_json_key_fmt(buf, "custom.process_id", "%d", MyProcPid);
+  appendStringInfo(buf, ",\"custom.process_id\":\"%d\"", MyProcPid);
 
   /* Remote host and port */
   if (MyProcPort && MyProcPort->remote_host)
   {
-    pgauditlogtofile_append_json_key_value(buf, "net.peer.name", MyProcPort->remote_host);
+    appendStringInfoString(buf, ",\"net.peer.name\":");
+    escape_json(buf, MyProcPort->remote_host);
+
     if (MyProcPort->remote_port && MyProcPort->remote_port[0] != '\0')
-      pgauditlogtofile_append_json_key_value(buf, "net.peer.port", MyProcPort->remote_port);
-  }
-
-  /* session id - hex representation of start time . session process id */
-  pgauditlogtofile_append_json_key_fmt(buf, "custom.session_id", "%lx.%x", (long)MyStartTime, MyProcPid);
-
-  /* PS display */
-  if (MyProcPort)
-  {
-    const char *psdisp;
-    int displen;
-
-    psdisp = get_ps_display(&displen);
-    if (psdisp && displen > 0)
     {
-      if (exclude_nchars == 0)
-      {
-        if (pg_strncasecmp(edata->message, "disconnection", 13) == 0)
-          pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", "disconnection");
-        else if (pg_strncasecmp(edata->message, "connection authenticated", 24) == 0 ||
-                 pg_strncasecmp(edata->message, "connection authorized", 21) == 0)
-          pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", "authentication");
-        else
-          pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", psdisp);
-      }
-      else
-        pgauditlogtofile_append_json_key_value(buf, "custom.command_tag", psdisp);
+      appendStringInfoString(buf, ",\"net.peer.port\":");
+      escape_json(buf, MyProcPort->remote_port);
     }
   }
 
+  /* session id - hex representation of start time . session process id */
+  appendStringInfo(buf, ",\"custom.session_id\":\"%lx.%x\"", (long)MyStartTime, MyProcPid);
+
+  /* PS display */
+  psdisp = get_ps_display(&displen);
+  if (psdisp && displen > 0)
+  {
+    appendStringInfoString(buf, ",\"custom.command_tag\":");
+    if (exclude_nchars == 0 && strncmp(edata->message, "disconnection", 13) == 0)
+      escape_json(buf, "disconnection");
+    else if (exclude_nchars == 0 && (strncmp(edata->message, "connection authenticated", 24) == 0 ||
+                                     strncmp(edata->message, "connection authorized", 21) == 0))
+      escape_json(buf, "authentication");
+    else
+      escape_json(buf, psdisp);
+  }
+
   /* Virtual transaction id */
-  /* keep VXID format in sync with lockfuncs.c */
 #if (PG_VERSION_NUM >= 170000)
   if (MyProc != NULL && MyProc->vxid.procNumber != INVALID_PROC_NUMBER)
-  {
-    pgauditlogtofile_append_json_key_fmt(buf, "custom.virtual_transaction_id", "%d/%u", MyProc->vxid.procNumber, MyProc->vxid.lxid);
-  }
+    appendStringInfo(buf, ",\"custom.virtual_transaction_id\":\"%d/%u\"", MyProc->vxid.procNumber, MyProc->vxid.lxid);
 #else
   if (MyProc != NULL && MyProc->backendId != InvalidBackendId)
-  {
-    pgauditlogtofile_append_json_key_fmt(buf, "custom.virtual_transaction_id", "%d/%u", MyProc->backendId, MyProc->lxid);
-  }
+    appendStringInfo(buf, ",\"custom.virtual_transaction_id\":\"%d/%u\"", MyProc->backendId, MyProc->lxid);
 #endif
 
   /* Transaction id */
-  pgauditlogtofile_append_json_key_fmt(buf, "custom.transaction_id", "%u", GetTopTransactionIdIfAny());
+  appendStringInfo(buf, ",\"custom.transaction_id\":\"%u\"", GetTopTransactionIdIfAny());
 
   /* SQL state code */
-  pgauditlogtofile_append_json_key_value(buf, "custom.state_code", unpack_sql_state(edata->sqlerrcode));
+  appendStringInfoString(buf, ",\"custom.state_code\":");
+  escape_json(buf, unpack_sql_state(edata->sqlerrcode));
 
   /* errmessage - PGAUDIT formatted text, +7 exclude "AUDIT: " prefix */
   if (exclude_nchars > 0)
     pgauditlogtofile_pgaudit2json(buf, edata->message + exclude_nchars);
   else
-    pgauditlogtofile_append_json_key_value(buf, "content", edata->message);
+  {
+    appendStringInfoString(buf, ",\"content\":");
+    escape_json(buf, edata->message);
+  }
 
   /* errdetail or errdetail_log */
   if (edata->detail_log)
-    pgauditlogtofile_append_json_key_value(buf, "custom.detail_log", edata->detail_log);
+  {
+    appendStringInfoString(buf, ",\"custom.detail_log\":");
+    escape_json(buf, edata->detail_log);
+  }
   else if (edata->detail)
-    pgauditlogtofile_append_json_key_value(buf, "custom.detail_log", edata->detail);
+  {
+    appendStringInfoString(buf, ",\"custom.detail_log\":");
+    escape_json(buf, edata->detail);
+  }
 
   /* errhint */
   if (edata->hint)
-    pgauditlogtofile_append_json_key_value(buf, "custom.err_hint", edata->hint);
+  {
+    appendStringInfoString(buf, ",\"custom.err_hint\":");
+    escape_json(buf, edata->hint);
+  }
 
-  /* internal query */
+  /* internal query and position */
   if (edata->internalquery)
-    pgauditlogtofile_append_json_key_value(buf, "custom.internal_query", edata->internalquery);
-
-  /* if printed internal query, print internal pos too */
-  if (edata->internalpos > 0 && edata->internalquery != NULL)
   {
-    pgauditlogtofile_append_json_key_fmt(buf, "custom.internal_query_pos", "%d", edata->internalpos);
+    appendStringInfoString(buf, ",\"custom.internal_query\":");
+    escape_json(buf, edata->internalquery);
+    if (edata->internalpos > 0)
+      appendStringInfo(buf, ",\"custom.internal_query_pos\":\"%d\"", edata->internalpos);
   }
 
-  /* errcontext */
   if (edata->context)
-    pgauditlogtofile_append_json_key_value(buf, "custom.context", edata->context);
-
-  /* user query --- only reported if not disabled by the caller */
-  if (debug_query_string != NULL && !edata->hide_stmt)
   {
-    pgauditlogtofile_append_json_key_value(buf, "custom.debug_query", debug_query_string);
-    if (edata->cursorpos > 0)
-    {
-      pgauditlogtofile_append_json_key_fmt(buf, "custom.cursor_pos", "%d", edata->cursorpos);
-    }
+    appendStringInfoString(buf, ",\"custom.context\":");
+    escape_json(buf, edata->context);
   }
 
-  /* file error location */
-  if (Log_error_verbosity >= PGERROR_VERBOSE)
-  {
-    if (edata->filename)
-    {
-      char buffNum[FORMATTED_NUMLINE_LEN] = {0};
-
-      pgauditlogtofile_append_json_key_value(buf, "custom.source_filename", edata->filename);
-
-      pg_snprintf(buffNum, sizeof(buffNum), "%d", edata->lineno);
-      pgauditlogtofile_append_json_key_value(buf, "custom.source_linenum", buffNum);
-    }
-    if (edata->funcname)
-      pgauditlogtofile_append_json_key_value(buf, "custom.source_funcname", edata->funcname);
-  }
-
-  /* application name */
-  if (application_name)
-    pgauditlogtofile_append_json_key_value(buf, "custom.application_name", application_name);
-
-  /* execution time */
   if (guc_pgaudit_ltf_log_execution_time &&
       !INSTR_TIME_IS_ZERO(pgaudit_ltf_statement_start_time) &&
       !INSTR_TIME_IS_ZERO(pgaudit_ltf_statement_end_time))
   {
-    double total_time;
-    instr_time duration = pgaudit_ltf_statement_end_time;
-
-    /* execution time start */
     PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_start_time, formatted_log_time, sizeof(formatted_log_time));
-    pgauditlogtofile_append_json_key_value(buf, "custom.execution_start", formatted_log_time);
+    appendStringInfoString(buf, ",\"custom.execution_start\":");
+    escape_json(buf, formatted_log_time);
 
-    /* execution time end */
     PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_end_time, formatted_log_time, sizeof(formatted_log_time));
-    pgauditlogtofile_append_json_key_value(buf, "custom.execution_end", formatted_log_time);
+    appendStringInfoString(buf, ",\"custom.execution_end\":");
+    escape_json(buf, formatted_log_time);
 
-    /* execution time */
+    duration = pgaudit_ltf_statement_end_time;
     INSTR_TIME_SUBTRACT(duration, pgaudit_ltf_statement_start_time);
     total_time = INSTR_TIME_GET_DOUBLE(duration);
-    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_time", "%.9f", total_time);
+    appendStringInfo(buf, ",\"custom.execution_time\":\"%.9f\"", total_time);
 
-    /* Reset timing variables after logging to prevent "leaking" to the next unrelated log line */
     INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_start_time);
     INSTR_TIME_SET_ZERO(pgaudit_ltf_statement_end_time);
   }
 
-  /* memory usage */
   if (guc_pgaudit_ltf_log_execution_memory &&
       pgaudit_ltf_statement_memory_start > 0 &&
       pgaudit_ltf_statement_memory_end > 0)
   {
-    Size memory_usage = pgaudit_ltf_statement_memory_end - pgaudit_ltf_statement_memory_start;
-    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.start", "%ld", pgaudit_ltf_statement_memory_start);
-    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.end", "%ld", pgaudit_ltf_statement_memory_end);
-    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.peak", "%ld", pgaudit_ltf_statement_memory_peak);
-    pgauditlogtofile_append_json_key_fmt(buf, "custom.execution_memory.delta", "%ld", memory_usage < 0 ? 0 : memory_usage);
+    memory_usage = pgaudit_ltf_statement_memory_end - pgaudit_ltf_statement_memory_start;
+    appendStringInfo(buf, ",\"custom.execution_memory.start\":\"%ld\"", (long)pgaudit_ltf_statement_memory_start);
+    appendStringInfo(buf, ",\"custom.execution_memory.end\":\"%ld\"", (long)pgaudit_ltf_statement_memory_end);
+    appendStringInfo(buf, ",\"custom.execution_memory.peak\":\"%ld\"", (long)pgaudit_ltf_statement_memory_peak);
+    appendStringInfo(buf, ",\"custom.execution_memory.delta\":\"%ld\"", (long)(memory_usage < 0 ? 0 : memory_usage));
 
-    /* Reset memory variables */
     pgaudit_ltf_statement_memory_start = 0;
     pgaudit_ltf_statement_memory_end = 0;
   }
@@ -242,87 +217,63 @@ pgauditlogtofile_pgaudit2json(StringInfo buf, char *line)
   // AUDIT_TYPE
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_json_key_value(buf, "custom.audit_type", token);
+  {
+    appendStringInfoString(buf, ",\"custom.audit_type\":");
+    escape_json(buf, token);
+  }
 
   // STATEMENT_ID
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_json_key_value(buf, "custom.statement_id", token);
+  {
+    appendStringInfoString(buf, ",\"custom.statement_id\":");
+    escape_json(buf, token);
+  }
 
   // SUBSTATEMENT_ID
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_json_key_value(buf, "custom.substatement_id", token);
+  {
+    appendStringInfoString(buf, ",\"custom.substatement_id\":");
+    escape_json(buf, token);
+  }
 
   // CLASS
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_json_key_value(buf, "custom.class", token);
+  {
+    appendStringInfoString(buf, ",\"custom.class\":");
+    escape_json(buf, token);
+  }
 
   // COMMAND
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_json_key_value(buf, "custom.command", token);
+  {
+    appendStringInfoString(buf, ",\"custom.command\":");
+    escape_json(buf, token);
+  }
 
   // OBJECT_TYPE
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_json_key_value(buf, "custom.object_type", token);
+  {
+    appendStringInfoString(buf, ",\"custom.object_type\":");
+    escape_json(buf, token);
+  }
 
   // OBJECT_NAME
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_json_key_value(buf, "custom.object_name", token);
+  {
+    appendStringInfoString(buf, ",\"custom.object_name\":");
+    escape_json(buf, token);
+  }
 
   // Statement and parameters as one field
   if (line && *line != '\0')
-    pgauditlogtofile_append_json_key_value(buf, "content", line + (*line == ',' ? 1 : 0));
-}
-
-/*
- * Derived from src/backend/utils/error/jsonlog.c appendJSONKeyValue (private)
- *
- * Append to a StringInfo a comma followed by a JSON key and a value.
- * The key is always escaped.  The value is always escaped.
- */
-static void
-pgauditlogtofile_append_json_key_value(StringInfo buf, const char *key, const char *value)
-{
-  if (value == NULL)
-    return;
-
-  if (key == NULL)
-    return;
-
-  appendStringInfoChar(buf, ',');
-  escape_json(buf, key);
-  appendStringInfoChar(buf, ':');
-  escape_json(buf, value);
-}
-
-/**
- * @brief Append to a StringInfo a json key+value pair with quotes.
- * @param buf where to write
- * @param key json attribute key
- * @param fmt sprintf like formatting string
- * @param any format parameters
- */
-static void
-pgauditlogtofile_append_json_key_fmt(StringInfo buf, const char *key, const char *fmt, ...)
-{
-  StringInfoData formatted_value;
-  va_list args;
-
-  if (fmt == NULL)
-    return;
-
-  initStringInfo(&formatted_value);
-
-  va_start(args, fmt);
-  appendStringInfoVA(&formatted_value, fmt, args);
-  va_end(args);
-
-  pgauditlogtofile_append_json_key_value(buf, key, formatted_value.data);
-
-  pfree(formatted_value.data);
+  {
+    appendStringInfoString(buf, ",\"content\":");
+    escape_json(buf, line + (*line == ',' ? 1 : 0));
+  }
 }

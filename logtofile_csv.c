@@ -26,13 +26,7 @@
 #include <stdarg.h>
 
 /* forward declaration private functions */
-
-inline static void pgauditlogtofile_append_csv_value(StringInfo buf, const char *value)
-    __attribute__((always_inline));
-static void pgauditlogtofile_append_csv_fmt(StringInfo buf, const char *fmt, ...)
-    __attribute__((format(gnu_printf, 2, 3)));
-inline static void pgauditlogtofile_pgaudit_escape(StringInfo buf, char *line)
-    __attribute__((always_inline));
+static void pgauditlogtofile_pgaudit2csv(StringInfo buf, char *line);
 
 /**
  * @brief Creates a csv audit record
@@ -43,152 +37,141 @@ inline static void pgauditlogtofile_pgaudit_escape(StringInfo buf, char *line)
  */
 void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars)
 {
-  bool print_stmt = false;
   char formatted_log_time[FORMATTED_TS_LEN];
+  const char *psdisp;
+  int displen;
   instr_time now_instr;
+  double total_time;
+  instr_time duration;
+  Size memory_usage;
 
   /* timestamp with nanoseconds */
   INSTR_TIME_SET_CURRENT(now_instr);
   PgAuditLogToFile_format_instr_time_nanos(now_instr, formatted_log_time, sizeof(formatted_log_time));
-  pgauditlogtofile_append_csv_value(buf, formatted_log_time);
+  escape_json(buf, formatted_log_time);
   appendStringInfoCharMacro(buf, ',');
 
   /* username */
   if (MyProcPort && MyProcPort->user_name)
-    pgauditlogtofile_append_csv_value(buf, MyProcPort->user_name);
+    escape_json(buf, MyProcPort->user_name);
   appendStringInfoCharMacro(buf, ',');
 
   /* database name */
   if (MyProcPort && MyProcPort->database_name)
-    pgauditlogtofile_append_csv_value(buf, MyProcPort->database_name);
+    escape_json(buf, MyProcPort->database_name);
   appendStringInfoCharMacro(buf, ',');
 
   /* Process id  */
-  pgauditlogtofile_append_csv_fmt(buf, "%d", MyProcPid);
+  appendStringInfo(buf, "\"%d\"", MyProcPid);
   appendStringInfoCharMacro(buf, ',');
 
   /* Remote host and port */
   if (MyProcPort && MyProcPort->remote_host)
   {
     if (MyProcPort->remote_port && MyProcPort->remote_port[0] != '\0')
-      pgauditlogtofile_append_csv_fmt(buf, "%s:%s", MyProcPort->remote_host, MyProcPort->remote_port);
+      appendStringInfo(buf, "\"%s:%s\"", MyProcPort->remote_host, MyProcPort->remote_port);
     else
-      pgauditlogtofile_append_csv_value(buf, MyProcPort->remote_host);
+      escape_json(buf, MyProcPort->remote_host);
   }
   appendStringInfoCharMacro(buf, ',');
 
   /* session id - hex representation of start time . session process id */
-  pgauditlogtofile_append_csv_fmt(buf, "%lx.%x", (long)MyStartTime, MyProcPid);
+  appendStringInfo(buf, "\"%lx.%x\"", (long)MyStartTime, MyProcPid);
   appendStringInfoCharMacro(buf, ',');
 
   /* PS display */
-  if (MyProcPort)
+  psdisp = get_ps_display(&displen);
+  if (psdisp && displen > 0)
   {
-    const char *psdisp;
-    int displen;
-
-    psdisp = get_ps_display(&displen);
-    if (psdisp && displen > 0)
-    {
-      if (exclude_nchars == 0)
-      {
-        if (pg_strncasecmp(edata->message, "disconnection", 13) == 0)
-          pgauditlogtofile_append_csv_value(buf, "disconnection");
-        else if (pg_strncasecmp(edata->message, "connection authenticated", 24) == 0 ||
-                 pg_strncasecmp(edata->message, "connection authorized", 21) == 0)
-          pgauditlogtofile_append_csv_value(buf, "authentication");
-        else
-          pgauditlogtofile_append_csv_value(buf, psdisp);
-      }
-      else
-        pgauditlogtofile_append_csv_value(buf, psdisp);
-    }
+    if (exclude_nchars == 0 && strncmp(edata->message, "disconnection", 13) == 0)
+      escape_json(buf, "disconnection");
+    else if (exclude_nchars == 0 && (strncmp(edata->message, "connection authenticated", 24) == 0 ||
+                                     strncmp(edata->message, "connection authorized", 21) == 0))
+      escape_json(buf, "authentication");
+    else
+      escape_json(buf, psdisp);
   }
   appendStringInfoCharMacro(buf, ',');
 
   /* Virtual transaction id */
-  /* keep VXID format in sync with lockfuncs.c */
 #if (PG_VERSION_NUM >= 170000)
   if (MyProc != NULL && MyProc->vxid.procNumber != INVALID_PROC_NUMBER)
-    pgauditlogtofile_append_csv_fmt(buf, "%d/%u", MyProc->vxid.procNumber, MyProc->vxid.lxid);
+    appendStringInfo(buf, "\"%d/%u\"", MyProc->vxid.procNumber, MyProc->vxid.lxid);
 #else
   if (MyProc != NULL && MyProc->backendId != InvalidBackendId)
-    pgauditlogtofile_append_csv_fmt(buf, "%d/%u", MyProc->backendId, MyProc->lxid);
+    appendStringInfo(buf, "\"%d/%u\"", MyProc->backendId, MyProc->lxid);
 #endif
   appendStringInfoCharMacro(buf, ',');
 
   /* Transaction id */
-  pgauditlogtofile_append_csv_fmt(buf, "%u", GetTopTransactionIdIfAny());
+  appendStringInfo(buf, "\"%u\"", GetTopTransactionIdIfAny());
   appendStringInfoCharMacro(buf, ',');
 
   /* SQL state code */
-  pgauditlogtofile_append_csv_value(buf, unpack_sql_state(edata->sqlerrcode));
+  escape_json(buf, unpack_sql_state(edata->sqlerrcode));
   appendStringInfoCharMacro(buf, ',');
 
   /* errmessage - PGAUDIT formatted text, +7 exclude "AUDIT: " prefix */
   if (exclude_nchars > 0)
-    pgauditlogtofile_pgaudit_escape(buf, edata->message + exclude_nchars);
+    pgauditlogtofile_pgaudit2csv(buf, edata->message + exclude_nchars);
   else
-    pgauditlogtofile_append_csv_value(buf, edata->message);
+    escape_json(buf, edata->message);
   appendStringInfoCharMacro(buf, ',');
 
   /* errdetail or errdetail_log */
   if (edata->detail_log)
-    pgauditlogtofile_append_csv_value(buf, edata->detail_log);
+    escape_json(buf, edata->detail_log);
   else if (edata->detail)
-    pgauditlogtofile_append_csv_value(buf, edata->detail);
+    escape_json(buf, edata->detail);
   appendStringInfoCharMacro(buf, ',');
 
   /* errhint */
   if (edata->hint)
-    pgauditlogtofile_append_csv_value(buf, edata->hint);
+    escape_json(buf, edata->hint);
   appendStringInfoCharMacro(buf, ',');
 
   /* internal query */
   if (edata->internalquery)
-    pgauditlogtofile_append_csv_value(buf, edata->internalquery);
+    escape_json(buf, edata->internalquery);
   appendStringInfoCharMacro(buf, ',');
 
   /* if printed internal query, print internal pos too */
   if (edata->internalpos > 0 && edata->internalquery != NULL)
-    pgauditlogtofile_append_csv_fmt(buf, "%d", edata->internalpos);
+    appendStringInfo(buf, "\"%d\"", edata->internalpos);
   appendStringInfoCharMacro(buf, ',');
 
   /* errcontext */
   if (edata->context)
-    pgauditlogtofile_append_csv_value(buf, edata->context);
+    escape_json(buf, edata->context);
   appendStringInfoCharMacro(buf, ',');
 
-  /* user query --- only reported if not disabled by the caller */
+  /* user query and cursor position */
   if (debug_query_string != NULL && !edata->hide_stmt)
-    print_stmt = true;
-  if (print_stmt)
-    pgauditlogtofile_append_csv_value(buf, debug_query_string);
-  appendStringInfoCharMacro(buf, ',');
-  if (print_stmt && edata->cursorpos > 0)
-    pgauditlogtofile_append_csv_fmt(buf, "%d", edata->cursorpos);
-  appendStringInfoCharMacro(buf, ',');
+  {
+    escape_json(buf, debug_query_string);
+    appendStringInfoCharMacro(buf, ',');
+    if (edata->cursorpos > 0)
+      appendStringInfo(buf, "\"%d\"", edata->cursorpos);
+    appendStringInfoCharMacro(buf, ',');
+  }
+  else
+  {
+    appendStringInfo(buf, ",,");
+  }
 
   /* file error location */
   if (Log_error_verbosity >= PGERROR_VERBOSE)
   {
-    StringInfoData loc;
-
-    initStringInfo(&loc);
-
     if (edata->funcname && edata->filename)
-      appendStringInfo(&loc, "%s, %s:%d", edata->funcname, edata->filename, edata->lineno);
+      appendStringInfo(buf, "\"%s, %s:%d\"", edata->funcname, edata->filename, edata->lineno);
     else if (edata->filename)
-      appendStringInfo(&loc, "%s:%d", edata->filename, edata->lineno);
-    pgauditlogtofile_append_csv_value(buf, loc.data);
-
-    pfree(loc.data);
+      appendStringInfo(buf, "\"%s:%d\"", edata->filename, edata->lineno);
   }
   appendStringInfoCharMacro(buf, ',');
 
   /* application name */
   if (application_name)
-    pgauditlogtofile_append_csv_value(buf, application_name);
+    escape_json(buf, application_name);
   appendStringInfoCharMacro(buf, ',');
 
   /* execution time */
@@ -196,23 +179,21 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
       !INSTR_TIME_IS_ZERO(pgaudit_ltf_statement_start_time) &&
       !INSTR_TIME_IS_ZERO(pgaudit_ltf_statement_end_time))
   {
-    double total_time;
-    instr_time duration = pgaudit_ltf_statement_end_time;
-
     /* start time */
     PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_start_time, formatted_log_time, sizeof(formatted_log_time));
-    pgauditlogtofile_append_csv_value(buf, formatted_log_time);
+    escape_json(buf, formatted_log_time);
     appendStringInfoCharMacro(buf, ',');
 
     /* end time */
     PgAuditLogToFile_format_instr_time_nanos(pgaudit_ltf_statement_end_time, formatted_log_time, sizeof(formatted_log_time));
-    pgauditlogtofile_append_csv_value(buf, formatted_log_time);
+    escape_json(buf, formatted_log_time);
     appendStringInfoCharMacro(buf, ',');
 
     /* execution time */
+    duration = pgaudit_ltf_statement_end_time;
     INSTR_TIME_SUBTRACT(duration, pgaudit_ltf_statement_start_time);
     total_time = INSTR_TIME_GET_DOUBLE(duration);
-    pgauditlogtofile_append_csv_fmt(buf, "%.9f", total_time);
+    appendStringInfo(buf, "\"%.9f\"", total_time);
     appendStringInfoCharMacro(buf, ',');
 
     /* Reset timing variables after logging */
@@ -221,9 +202,7 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
   }
   else
   {
-    appendStringInfoCharMacro(buf, ',');
-    appendStringInfoCharMacro(buf, ',');
-    appendStringInfoCharMacro(buf, ',');
+    appendStringInfo(buf, ",,,");
   }
 
   /* memory usage */
@@ -231,26 +210,20 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
       pgaudit_ltf_statement_memory_start > 0 &&
       pgaudit_ltf_statement_memory_end > 0)
   {
-    Size memory_usage = pgaudit_ltf_statement_memory_end - pgaudit_ltf_statement_memory_start;
-    pgauditlogtofile_append_csv_fmt(buf, "%ld", pgaudit_ltf_statement_memory_start);
-    appendStringInfoCharMacro(buf, ',');
-    pgauditlogtofile_append_csv_fmt(buf, "%ld", pgaudit_ltf_statement_memory_end);
-    appendStringInfoCharMacro(buf, ',');
-    pgauditlogtofile_append_csv_fmt(buf, "%ld", pgaudit_ltf_statement_memory_peak);
-    appendStringInfoCharMacro(buf, ',');
-    pgauditlogtofile_append_csv_fmt(buf, "%ld", memory_usage < 0 ? 0 : memory_usage);
+    memory_usage = pgaudit_ltf_statement_memory_end - pgaudit_ltf_statement_memory_start;
+    appendStringInfo(buf, "\"%ld\",\"%ld\",\"%ld\",\"%ld\"",
+                     (long)pgaudit_ltf_statement_memory_start,
+                     (long)pgaudit_ltf_statement_memory_end,
+                     (long)pgaudit_ltf_statement_memory_peak,
+                     (long)(memory_usage < 0 ? 0 : memory_usage));
 
     /* Reset memory variables */
     pgaudit_ltf_statement_memory_start = 0;
     pgaudit_ltf_statement_memory_end = 0;
-    /* last element, skip separator */
   }
   else
   {
-    appendStringInfoCharMacro(buf, ',');
-    appendStringInfoCharMacro(buf, ',');
-    appendStringInfoCharMacro(buf, ',');
-    /* last element, skip separator */
+    appendStringInfo(buf, ",,,");
   }
 
   appendStringInfoCharMacro(buf, '\n');
@@ -259,101 +232,58 @@ void PgAuditLogToFile_csv_audit(StringInfo buf, const ErrorData *edata, int excl
 /* private functions */
 
 /**
- * @brief Writes a CSV value quoted and escaped.
- * @param buf where to write
- * @param value value
- */
-static void
-pgauditlogtofile_append_csv_value(StringInfo buf, const char *value)
-{
-  if (value == NULL)
-    return;
-
-  escape_json(buf, value);
-}
-
-/**
- * @brief Writes a CSV value quoted and escaped.
- * @param buf where to write
- * @param fmt sprintf like formatting string
- * @param any format parameters
- */
-static void
-pgauditlogtofile_append_csv_fmt(StringInfo buf, const char *fmt, ...)
-{
-  StringInfoData formatted_value;
-  va_list args;
-
-  if (fmt == NULL)
-    return;
-
-  initStringInfo(&formatted_value);
-
-  va_start(args, fmt);
-  appendStringInfoVA(&formatted_value, fmt, args);
-  va_end(args);
-
-  pgauditlogtofile_append_csv_value(buf, formatted_value.data);
-
-  pfree(formatted_value.data);
-}
-
-/**
  * @brief Split and escapes each piece on pgaudit original message and writes it as CSV value.
  * @param buf Where to write
  * @param line original pgaudit message, it's modified in this function
  */
 static void
-pgauditlogtofile_pgaudit_escape(StringInfo buf, char *line)
+pgauditlogtofile_pgaudit2csv(StringInfo buf, char *line)
 {
   char *token;
 
-  // AUDIT_TYPE
+  /* 1. AUDIT_TYPE */
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_csv_value(buf, token);
+    escape_json(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
-  // STATEMENT_ID
+  /* 2. STATEMENT_ID */
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_csv_value(buf, token);
+    escape_json(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
-  // SUBSTATEMENT_ID
+  /* 3. SUBSTATEMENT_ID */
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_csv_value(buf, token);
+    escape_json(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
-  // CLASS
+  /* 4. CLASS */
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_csv_value(buf, token);
+    escape_json(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
-  // COMMAND
+  /* 5. COMMAND */
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_csv_value(buf, token);
+    escape_json(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
-  // OBJECT_TYPE
+  /* 6. OBJECT_TYPE */
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_csv_value(buf, token);
+    escape_json(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
-  // OBJECT_NAME
+  /* 7. OBJECT_NAME */
   token = strsep(&line, ",");
   if (token)
-    pgauditlogtofile_append_csv_value(buf, token);
+    escape_json(buf, token);
   appendStringInfoCharMacro(buf, ',');
 
-  /*
-   * writes as one field the statement and the params, but the statement and parameters
-   * can contain comma we cannot split them easily
-   * */
+  /* 8. Statement and parameters (the rest of the line) */
   if (line && *line != '\0')
-    pgauditlogtofile_append_csv_value(buf, line + (*line == ',' ? 1 : 0));
+    escape_json(buf, line + (*line == ',' ? 1 : 0));
 }
