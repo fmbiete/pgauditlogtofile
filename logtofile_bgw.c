@@ -66,10 +66,18 @@ void PgAuditLogToFileMain(Datum arg)
   /* Register custom wait events for visibility in pg_stat_activity */
   if (pgaudit_wait_main == 0)
   {
+#if PG_VERSION_NUM >= 170000
     pgaudit_wait_main = WaitEventExtensionNew("PgAuditLogToFileMain");
     pgaudit_wait_signal = WaitEventExtensionNew("PgAuditLogToFileSignal");
     pgaudit_wait_config = WaitEventExtensionNew("PgAuditLogToFileConfig");
     pgaudit_wait_rotate = WaitEventExtensionNew("PgAuditLogToFileRotate");
+#else
+    /* custom wait events for extensions were still not available */
+    pgaudit_wait_main = WAIT_EVENT_EXTENSION;
+    pgaudit_wait_signal = WAIT_EVENT_EXTENSION;
+    pgaudit_wait_config = WAIT_EVENT_EXTENSION;
+    pgaudit_wait_rotate = WAIT_EVENT_EXTENSION;
+#endif
   }
 
   pqsignal(SIGHUP, SignalHandlerForConfigReload);
