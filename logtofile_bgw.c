@@ -73,10 +73,10 @@ void PgAuditLogToFileMain(Datum arg)
     pgaudit_wait_rotate = WaitEventExtensionNew("PgAuditLogToFileRotate");
 #else
     /* custom wait events for extensions were still not available */
-    pgaudit_wait_main = WAIT_EVENT_EXTENSION;
-    pgaudit_wait_signal = WAIT_EVENT_EXTENSION;
-    pgaudit_wait_config = WAIT_EVENT_EXTENSION;
-    pgaudit_wait_rotate = WAIT_EVENT_EXTENSION;
+    pgaudit_wait_main = PG_WAIT_EXTENSION;
+    pgaudit_wait_signal = PG_WAIT_EXTENSION;
+    pgaudit_wait_config = PG_WAIT_EXTENSION;
+    pgaudit_wait_rotate = PG_WAIT_EXTENSION;
 #endif
   }
 
