@@ -31,7 +31,7 @@ void PgAuditLogToFile_ExecutorStart_Hook(QueryDesc *queryDesc, int eflags)
 {
   if (!pgaudit_ltf_handler_setup)
   {
-#if PG_VERSION_NUM >= 180000
+#if (PG_VERSION_NUM >= 180000)
     /* setup a signal handler for SIGUSR1 in the backend, and hope we don't lose another */
     pqsignal(SIGUSR1, PgAuditLogToFile_SIGUSR1);
 #else

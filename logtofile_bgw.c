@@ -66,7 +66,7 @@ void PgAuditLogToFileMain(Datum arg)
   /* Register custom wait events for visibility in pg_stat_activity */
   if (pgaudit_wait_main == 0)
   {
-#if PG_VERSION_NUM >= 170000
+#if (PG_VERSION_NUM >= 170000)
     pgaudit_wait_main = WaitEventExtensionNew("PgAuditLogToFileMain");
     pgaudit_wait_signal = WaitEventExtensionNew("PgAuditLogToFileSignal");
     pgaudit_wait_config = WaitEventExtensionNew("PgAuditLogToFileConfig");

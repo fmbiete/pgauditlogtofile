@@ -61,7 +61,7 @@ void PgAuditLogToFile_format_instr_time_nanos(instr_time t, char *buf, size_t le
   delta = now_instr;
   INSTR_TIME_SUBTRACT(delta, t);
 
-#if PG_VERSION_NUM >= 160000
+#if (PG_VERSION_NUM >= 160000)
   /* Use nanosecond resolution where available */
   {
     int64 delta_nano = INSTR_TIME_GET_NANOSEC(delta);
@@ -88,7 +88,7 @@ void PgAuditLogToFile_format_instr_time_nanos(instr_time t, char *buf, size_t le
       tzn = "";
 
     /* Get nanoseconds from instr_time if available; fall back to microseconds*1000 */
-#if PG_VERSION_NUM >= 160000
+#if (PG_VERSION_NUM >= 160000)
     nsec = INSTR_TIME_GET_NANOSEC(t) % INT64CONST(1000000000);
 #else
     nsec = INSTR_TIME_GET_MICROSEC(t) * INT64CONST(1000);
