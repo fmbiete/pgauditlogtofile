@@ -61,6 +61,9 @@ pqsigfunc pgaudit_ltf_prev_sigusr1_handler = NULL;
 PgAuditLogToFileShm *pgaudit_ltf_shm = NULL;
 pg_atomic_flag pgaudit_ltf_flag_shutdown;
 
+// Extension memory context
+MemoryContext pgaudit_ltf_memory_context = NULL;
+
 // Shared memory hook
 shmem_startup_hook_type pgaudit_ltf_prev_shmem_startup_hook = NULL;
 #if (PG_VERSION_NUM >= 150000)

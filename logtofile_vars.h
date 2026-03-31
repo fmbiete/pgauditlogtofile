@@ -121,6 +121,9 @@ typedef struct pgAuditLogToFileShm
 extern PgAuditLogToFileShm *pgaudit_ltf_shm;
 extern pg_atomic_flag pgaudit_ltf_flag_shutdown;
 
+// Extension memory context
+extern MemoryContext pgaudit_ltf_memory_context;
+
 // Shared Memory - Hook
 extern shmem_startup_hook_type pgaudit_ltf_prev_shmem_startup_hook;
 #if (PG_VERSION_NUM >= 150000)

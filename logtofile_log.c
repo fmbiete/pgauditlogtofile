@@ -36,11 +36,13 @@
 #include <sys/stat.h>
 #include <zlib.h>
 #include <lz4frame.h>
+#define ZSTD_STATIC_LINKING_ONLY
 #include <zstd.h>
 
 /* Defines */
 #define PGAUDIT_PREFIX_LINE "AUDIT: "
 #define PGAUDIT_PREFIX_LINE_LENGTH sizeof(PGAUDIT_PREFIX_LINE) - 1
+#define PGAUDIT_LTF_AUDIT_BUFFER_INIT_SIZE (4 * 1024)
 
 /* variables to use only in this unit */
 static char filename_in_use[MAXPGPATH];
@@ -62,6 +64,8 @@ static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nc
 static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars);
 static void pgauditlogtofile_format_audit(StringInfo buf, const ErrorData *edata, int exclude_nchars);
 static bool pgauditlogtofile_compress_audit(const char *src, size_t src_len, char **dst, size_t *dst_len);
+static void *pgauditlogtofile_zstd_alloc(void *opaque, size_t size);
+static void pgauditlogtofile_zstd_free(void *opaque, void *address);
 
 /* public methods */
 
@@ -339,13 +343,20 @@ static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nc
  */
 static bool pgauditlogtofile_write_audit(const ErrorData *edata, int exclude_nchars)
 {
+  MemoryContext oldcontext;
   StringInfoData buf;
   char *data_to_write;
   size_t data_len;
   int rc;
   bool success = false;
 
+  oldcontext = MemoryContextSwitchTo(pgaudit_ltf_memory_context);
+#if (PG_VERSION_NUM >= 180000)
+  initStringInfoExt(&buf, PGAUDIT_LTF_AUDIT_BUFFER_INIT_SIZE);
+#else
   initStringInfo(&buf);
+#endif
+  MemoryContextSwitchTo(oldcontext);
 
   pgauditlogtofile_format_audit(&buf, edata, exclude_nchars);
 
@@ -438,7 +449,7 @@ pgauditlogtofile_compress_audit(const char *src, size_t src_len, char **dst, siz
     if (pgaudit_ltf_zbuf)
       pfree(pgaudit_ltf_zbuf);
     pgaudit_ltf_zbuf_len = compressed_len_bound;
-    pgaudit_ltf_zbuf = (char *)MemoryContextAlloc(TopMemoryContext, pgaudit_ltf_zbuf_len);
+    pgaudit_ltf_zbuf = (char *)MemoryContextAlloc(pgaudit_ltf_memory_context, pgaudit_ltf_zbuf_len);
   }
 
   /* 3. Perform algorithm-specific compression */
@@ -463,7 +474,7 @@ pgauditlogtofile_compress_audit(const char *src, size_t src_len, char **dst, siz
 
     if (pgaudit_ltf_zstream == NULL)
     {
-      pgaudit_ltf_zstream = (z_stream *)MemoryContextAlloc(TopMemoryContext, sizeof(z_stream));
+      pgaudit_ltf_zstream = (z_stream *)MemoryContextAlloc(pgaudit_ltf_memory_context, sizeof(z_stream));
       pgaudit_ltf_zstream->zalloc = Z_NULL;
       pgaudit_ltf_zstream->zfree = Z_NULL;
       pgaudit_ltf_zstream->opaque = Z_NULL;
@@ -526,7 +537,21 @@ pgauditlogtofile_compress_audit(const char *src, size_t src_len, char **dst, siz
       level = 1;
 
     if (pgaudit_ltf_zstd_cctx == NULL)
-      pgaudit_ltf_zstd_cctx = ZSTD_createCCtx();
+    {
+      ZSTD_customMem custom_mem;
+
+      custom_mem.customAlloc = pgauditlogtofile_zstd_alloc;
+      custom_mem.customFree = pgauditlogtofile_zstd_free;
+      custom_mem.opaque = (void *)pgaudit_ltf_memory_context;
+
+      pgaudit_ltf_zstd_cctx = ZSTD_createCCtx_advanced(custom_mem);
+      if (pgaudit_ltf_zstd_cctx == NULL)
+      {
+        ereport(LOG_SERVER_ONLY,
+                (errmsg("pgauditlogtofile: could not initialize zstd compression context")));
+        return false;
+      }
+    }
 
     cSize = ZSTD_compressCCtx(pgaudit_ltf_zstd_cctx, pgaudit_ltf_zbuf, pgaudit_ltf_zbuf_len, src, src_len, level);
     if (ZSTD_isError(cSize))
@@ -547,4 +572,22 @@ pgauditlogtofile_compress_audit(const char *src, size_t src_len, char **dst, siz
   }
 
   return compression_success;
+}
+
+static void *
+pgauditlogtofile_zstd_alloc(void *opaque, size_t size)
+{
+  MemoryContext context = (MemoryContext)opaque;
+
+  if (size == 0)
+    return NULL;
+
+  return MemoryContextAlloc(context, size);
+}
+
+static void
+pgauditlogtofile_zstd_free(__attribute__((unused)) void *opaque, void *address)
+{
+  if (address != NULL)
+    pfree(address);
 }

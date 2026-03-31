@@ -89,7 +89,7 @@ void PgAuditLogToFileMain(Datum arg)
 
   pgstat_report_appname("pgauditlogtofile launcher");
 
-  PgAuditLogToFileContext = AllocSetContextCreate(CurrentMemoryContext, "pgauditlogtofile loop context",
+  PgAuditLogToFileContext = AllocSetContextCreate(pgaudit_ltf_memory_context, "pgauditlogtofile loop context",
                                                   ALLOCSET_DEFAULT_MINSIZE, ALLOCSET_DEFAULT_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE);
 
   ereport(LOG_SERVER_ONLY, (errmsg("pgauditlogtofile worker started")));

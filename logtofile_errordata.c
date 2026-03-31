@@ -23,10 +23,10 @@ void PgAuditLogToFile_CopyPendingErrorData(ErrorData *edata)
 {
   MemoryContext oldcontext;
 
-  /* Switch to TopMemoryContext so the allocated memory persists across hooks */
-  oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+  /* Keep the copied ErrorData in the extension-owned memory context. */
+  oldcontext = MemoryContextSwitchTo(pgaudit_ltf_memory_context);
 
-  /* Free any previous entry to avoid leaks in TopMemoryContext */
+  /* Free any previous entry to avoid leaks in the extension context. */
   if (pgaudit_ltf_pending_audit.edata != NULL)
     PgAuditLogToFile_FreePendingErrorData();
 
@@ -76,7 +76,7 @@ void PgAuditLogToFile_CopyPendingErrorData(ErrorData *edata)
     pgaudit_ltf_pending_audit.edata->internalquery = pstrdup(edata->internalquery);
 
   /* Ensure assoc_context points to where we actually put it */
-  pgaudit_ltf_pending_audit.edata->assoc_context = TopMemoryContext;
+  pgaudit_ltf_pending_audit.edata->assoc_context = pgaudit_ltf_memory_context;
 
   MemoryContextSwitchTo(oldcontext);
 

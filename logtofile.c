@@ -33,6 +33,7 @@
 #include <storage/shmem.h>
 
 #include <utils/guc.h>
+#include <utils/memutils.h>
 #include <datatype/timestamp.h>
 
 static const struct config_enum_entry format_options[] = {
@@ -58,10 +59,21 @@ void _PG_init(void)
 
   if (!process_shared_preload_libraries_in_progress)
   {
-    ereport(ERROR, (
-                       errmsg("pgauditlogtofile can only be loaded via shared_preload_libraries"),
-                       errhint("Add pgauditlogtofile to the shared_preload_libraries configuration variable in postgresql.conf.")));
+    ereport(ERROR, (errmsg("pgauditlogtofile can only be loaded via shared_preload_libraries"),
+                    errhint("Add pgauditlogtofile to the shared_preload_libraries configuration variable in postgresql.conf.")));
   }
+  
+  PG_TRY();
+  {
+    pgaudit_ltf_memory_context = AllocSetContextCreate(TopMemoryContext, "pgauditlogtofile context", ALLOCSET_DEFAULT_MINSIZE,
+                                                          ALLOCSET_DEFAULT_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE);
+  }
+  PG_CATCH();
+  {
+    FlushErrorState();
+    ereport(FATAL, (errmsg("could not create pgauditlogtofile memory context")));
+  }
+  PG_END_TRY();
 
   /* guc variables */
   DefineCustomStringVariable(
@@ -209,4 +221,10 @@ void _PG_fini(void)
 
   ExecutorStart_hook = pgaudit_ltf_prev_ExecutorStart;
   ExecutorEnd_hook = pgaudit_ltf_prev_ExecutorEnd;
+
+  if (pgaudit_ltf_memory_context != NULL)
+  {
+    MemoryContextDelete(pgaudit_ltf_memory_context);
+    pgaudit_ltf_memory_context = NULL;
+  }
 }
