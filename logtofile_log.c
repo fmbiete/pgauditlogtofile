@@ -582,7 +582,8 @@ pgauditlogtofile_zstd_alloc(void *opaque, size_t size)
   if (size == 0)
     return NULL;
 
-  return MemoryContextAlloc(context, size);
+  // Use MCXT_ALLOC_NO_OOM to return nullptr on OOM, as external libraries expect.
+  return MemoryContextAllocExtended(context, size, MCXT_ALLOC_NO_OOM);
 }
 
 static void
