@@ -131,6 +131,10 @@ void PgAuditLogToFileMain(Datum arg)
             /* Send the actual signal via the OS */
             kill(proc->pid, SIGUSR1);
           }
+
+          /* Check for interrupts every 100 iterations to avoid blocking barriers */
+          if (i % 100 == 0)
+            CHECK_FOR_INTERRUPTS();
         }
   
         LWLockRelease(ProcArrayLock);
@@ -146,7 +150,7 @@ void PgAuditLogToFileMain(Datum arg)
         FlushErrorState();
       }
       PG_END_TRY();
-      
+
       pgstat_report_wait_end();
     }
 
