@@ -113,25 +113,40 @@ void PgAuditLogToFileMain(Datum arg)
 
       ereport(LOG, (errmsg("pgauditlogtofile bgw: received SIGUSR1, propagating to backends")));
 
-      /*
-       * Acquire a shared lock on the ProcArray to safely iterate
-       * through active backends.
-       */
-      LWLockAcquire(ProcArrayLock, LW_SHARED);
-
-      for (i = 0; i < ProcGlobal->allProcCount; i++)
+      PG_TRY();
       {
-        proc = &ProcGlobal->allProcs[i];
-
-        /* Don't signal yourself (the background worker) */
-        if (proc->pid != MyProcPid && proc->pid != 0)
+        /*
+         * Acquire a shared lock on the ProcArray to safely iterate
+         * through existing backends.
+         */
+        LWLockAcquire(ProcArrayLock, LW_SHARED);
+  
+        for (i = 0; i < ProcGlobal->allProcCount; i++)
         {
-          /* Send the actual signal via the OS */
-          kill(proc->pid, SIGUSR1);
+          proc = &ProcGlobal->allProcs[i];
+  
+          /* Don't signal yourself (the background worker) */
+          if (proc->pid != MyProcPid && proc->pid != 0)
+          {
+            /* Send the actual signal via the OS */
+            kill(proc->pid, SIGUSR1);
+          }
         }
+  
+        LWLockRelease(ProcArrayLock);
       }
+      PG_CATCH();
+      {
+        /* If an error happened, make sure we release the lock */
+        if (LWLockHeldByMe(ProcArrayLock))
+          LWLockRelease(ProcArrayLock);
 
-      LWLockRelease(ProcArrayLock);
+        /* Standard error cleanup */
+        EmitErrorReport();
+        FlushErrorState();
+      }
+      PG_END_TRY();
+      
       pgstat_report_wait_end();
     }
 

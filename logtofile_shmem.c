@@ -137,6 +137,10 @@ void PgAuditLogToFile_shmem_startup(void)
 void PgAuditLogToFile_shmem_shutdown(int code, Datum arg)
 {
   pg_atomic_test_set_flag(&pgaudit_ltf_flag_shutdown);
+  
+  /* If the process is dying, ensure the lock is gone */
+  if (LWLockHeldByMe(ProcArrayLock))
+    LWLockRelease(ProcArrayLock);
 }
 
 /**
