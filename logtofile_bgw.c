@@ -192,6 +192,10 @@ pgauditlogtofile_sigusr1(SIGNAL_ARGS)
   got_sigusr1 = true;
   if (MyProc)
     SetLatch(&MyProc->procLatch);
+
+  /* call standard handler to process other interrupts that are reusing the same signal */
+  procsignal_sigusr1_handler(postgres_signal_arg);
+
   errno = save_errno;
 }
 
