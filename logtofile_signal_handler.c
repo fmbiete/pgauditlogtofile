@@ -14,6 +14,8 @@
 #include "logtofile_urgentclose.h"
 #include "logtofile_vars.h"
 
+#include <storage/procsignal.h>
+
 #include <errno.h>
 #include <signal.h>
 #include <unistd.h>
@@ -36,6 +38,9 @@ void PgAuditLogToFile_SIGUSR1(SIGNAL_ARGS)
       pgaudit_ltf_prev_sigusr1_handler != SIG_IGN &&
       pgaudit_ltf_prev_sigusr1_handler != SIG_DFL)
     pgaudit_ltf_prev_sigusr1_handler(postgres_signal_arg);
+
+  /* call standard handler to process other interrupts that are reusing the same signal */
+  procsignal_sigusr1_handler(postgres_signal_arg);
 
   errno = save_errno;
 }

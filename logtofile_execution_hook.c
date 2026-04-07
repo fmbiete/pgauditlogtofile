@@ -19,6 +19,7 @@
 
 #include <executor/executor.h>
 #include <port.h>
+#include <storage/procsignal.h>
 
 static bool pgaudit_ltf_handler_setup = false;
 
@@ -33,6 +34,7 @@ void PgAuditLogToFile_ExecutorStart_Hook(QueryDesc *queryDesc, int eflags)
   {
 #if (PG_VERSION_NUM >= 180000)
     /* setup a signal handler for SIGUSR1 in the backend, and hope we don't lose another */
+    /* we will always call the default postgresql signal handler */
     pqsignal(SIGUSR1, PgAuditLogToFile_SIGUSR1);
 #else
     /* setup a signal handler for SIGUSR1 in the backend, and save the existing */
