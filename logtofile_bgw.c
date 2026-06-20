@@ -81,7 +81,16 @@ void PgAuditLogToFileMain(Datum arg)
   }
 
   pqsignal(SIGHUP, SignalHandlerForConfigReload);
+#if (PG_VERSION_NUM >= 190000)
+  /*
+   * PG19 changed pqsigfunc's signature (now takes a trailing
+   * pg_signal_info *), so SIG_IGN can no longer be passed to pqsignal()
+   * directly; use the PG_SIG_IGN wrapper macro from port.h instead.
+   */
+  pqsignal(SIGINT, PG_SIG_IGN);
+#else
   pqsignal(SIGINT, SIG_IGN);
+#endif
   pqsignal(SIGTERM, pgauditlogtofile_sigterm);
   pqsignal(SIGUSR1, pgauditlogtofile_sigusr1);
 
@@ -213,7 +222,11 @@ pgauditlogtofile_sigusr1(SIGNAL_ARGS)
     SetLatch(&MyProc->procLatch);
 
   /* call standard handler to process other interrupts that are reusing the same signal */
+#if (PG_VERSION_NUM >= 190000)
+  procsignal_sigusr1_handler(postgres_signal_arg, pg_siginfo);
+#else
   procsignal_sigusr1_handler(postgres_signal_arg);
+#endif
 
   errno = save_errno;
 }
