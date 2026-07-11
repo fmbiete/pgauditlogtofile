@@ -4,3 +4,5 @@
 /.vagrant
 /test/.vagrant
 /.vscode
+/pgauditlogtofile--*.sql
+/pgauditlogtofile.control
