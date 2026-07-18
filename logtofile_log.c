@@ -284,35 +284,45 @@ static bool pgauditlogtofile_record_audit(const ErrorData *edata, int exclude_nc
   char shm_filename[MAXPGPATH];
   uint32 current_generation;
 
-  /*
-   * If MyProc is NULL, we are likely in a process exit sequence. We can only
-   * log if we already have a filename in use. We also cannot safely acquire
-   * LWLocks to check for rotation, so we'll just stick with the current file.
-   */
-  if (MyProc == NULL)
-  {
-    if (filename_in_use[0] == '\0')
-      return false;
-  }
-  else
-  {
-    /* Check if a rotation has occurred or we haven't opened any file yet */
-    current_generation = pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation);
+  /* Check if a rotation has occurred or we haven't opened any file yet */
+  current_generation = pg_atomic_read_u32(&pgaudit_ltf_shm->rotation_generation);
 
-    if (current_generation != pgaudit_ltf_local_rotation_generation || filename_in_use[0] == '\0')
+  if (current_generation != pgaudit_ltf_local_rotation_generation || filename_in_use[0] == '\0')
+  {
+    pgauditlogtofile_close_file();
+
+    if (MyProc != NULL)
     {
-      pgauditlogtofile_close_file();
-
       LWLockAcquire(&pgaudit_ltf_shm->lock, LW_SHARED);
       strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
       LWLockRelease(&pgaudit_ltf_shm->lock);
-
-      pgaudit_ltf_local_rotation_generation = current_generation;
-
-      ereport(DEBUG3, (errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
-                              shm_filename, filename_in_use)));
     }
+    else
+    {
+      /*
+       * If MyProc is NULL, we cannot safely acquire LWLocks.
+       * We read the filename directly. Since we are in the process exit
+       * sequence, any minor race with the background worker rotating
+       * the file is extremely unlikely and preferred over writing to the
+       * outdated file.
+       */
+      strlcpy(shm_filename, pgaudit_ltf_shm->filename, MAXPGPATH);
+    }
+
+    pgaudit_ltf_local_rotation_generation = current_generation;
+
+    /* Update filename_in_use so pgauditlogtofile_open_file knows what to open */
+    strlcpy(filename_in_use, shm_filename, MAXPGPATH);
+
+    ereport(DEBUG3, (errmsg("pgauditlogtofile record audit file handler requires reopening - shm_filename %s filename_in_use %s",
+                            shm_filename, filename_in_use)));
   }
+
+  /*
+   * If MyProc is NULL and we couldn't resolve a filename, we cannot open/write.
+   */
+  if (filename_in_use[0] == '\0')
+    return false;
 
   if (!pgauditlogtofile_is_open_file() && !pgauditlogtofile_open_file())
     return false;
