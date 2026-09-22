@@ -1,4 +1,6 @@
 # pgauditlogtofile/Makefile
+SHELL := /bin/bash
+
 EXTENSION = pgauditlogtofile
 MODULE_big = pgauditlogtofile
 PGFILEDESC = "pgAuditLogToFile - An addon for pgAudit logging extension for PostgreSQL"
