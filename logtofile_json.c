@@ -163,6 +163,38 @@ void PgAuditLogToFile_json_audit(StringInfo buf, const ErrorData *edata, int exc
     escape_json(buf, edata->context);
   }
 
+  /* user query --- only reported if not disabled by the caller */
+  if (debug_query_string != NULL && !edata->hide_stmt)
+  {
+    appendStringInfoString(buf, ",\"custom.debug_query\":");
+    escape_json(buf, debug_query_string);
+    if (edata->cursorpos > 0)
+      appendStringInfo(buf, ",\"custom.cursor_pos\":\"%d\"", edata->cursorpos);
+  }
+
+  /* file error location */
+  if (Log_error_verbosity >= PGERROR_VERBOSE)
+  {
+    if (edata->filename)
+    {
+      appendStringInfoString(buf, ",\"custom.source_filename\":");
+      escape_json(buf, edata->filename);
+      appendStringInfo(buf, ",\"custom.source_linenum\":\"%d\"", edata->lineno);
+    }
+    if (edata->funcname)
+    {
+      appendStringInfoString(buf, ",\"custom.source_funcname\":");
+      escape_json(buf, edata->funcname);
+    }
+  }
+
+  /* application name */
+  if (application_name)
+  {
+    appendStringInfoString(buf, ",\"custom.application_name\":");
+    escape_json(buf, application_name);
+  }
+
   if (guc_pgaudit_ltf_log_execution_time &&
       !INSTR_TIME_IS_ZERO(pgaudit_ltf_statement_start_time) &&
       !INSTR_TIME_IS_ZERO(pgaudit_ltf_statement_end_time))
