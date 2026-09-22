@@ -49,14 +49,15 @@ endif
 $(SQL_FILES): $(EXTENSION)--%.sql:
 	@echo "/* $(EXTENSION)/$@ */" > $@
 	@echo "" >> $@
-	@if echo "$@" | grep -E -q -- "--.*--"; then \
-		VERSION_TO=$$(echo "$@" | rev | cut -d'-' -f1 | rev | sed 's/\.sql//'); \
+	@VERSION_TO=$$(echo "$@" | sed -E 's/.*--//; s/\.sql//'); \
+	if echo "$@" | grep -E -q -- "--.*--"; then \
 		echo "-- complain if script is sourced in psql, rather than via ALTER EXTENSION" >> $@; \
-		echo "\\echo Use \"ALTER EXTENSION $(EXTENSION) UPDATE TO '$$VERSION_TO'\" to load this file. \\quit" >> $@; \
+		printf '\\echo Use "ALTER EXTENSION $(EXTENSION) UPDATE TO '\''%s'\''" to load this file. \\quit\n' "$$VERSION_TO" >> $@; \
 	else \
 		echo "-- complain if script is sourced in psql, rather than via CREATE EXTENSION" >> $@; \
-		echo "\\echo Use \"CREATE EXTENSION $(EXTENSION) VERSION '$$VERSION_TO'\" to load this file. \\quit" >> $@; \
+		printf '\\echo Use "CREATE EXTENSION $(EXTENSION) VERSION '\''%s'\''" to load this file. \\quit\n' "$(EXTVERSION)" >> $@; \
 	fi
+
 
 
 # Generate the control file from the template
